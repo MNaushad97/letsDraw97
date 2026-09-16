@@ -76,6 +76,9 @@ html, body, #root {
   color: var(--text-primary);
   user-select: none;
   -webkit-user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* =============================================
@@ -87,6 +90,7 @@ html, body, #root {
   height: 100vh;
   overflow: hidden;
   background: var(--bg-canvas);
+  touch-action: none;
 }
 
 /* Canvas container */
@@ -95,12 +99,14 @@ html, body, #root {
   inset: 0;
   width: 100%;
   height: 100%;
+  touch-action: none;
 }
 
 .drawing-canvas {
   display: block;
   width: 100%;
   height: 100%;
+  touch-action: none;
 }
 
 /* =============================================
@@ -539,4 +545,105 @@ html, body, #root {
 .theme-toggle-btn:hover {
   background: var(--bg-elevated);
   color: var(--text-primary);
+}
+
+/* Mobile Responsiveness */
+@media (max-width: 768px) {
+  .top-bar {
+    top: 8px;
+    padding: 3px 6px;
+    gap: 2px;
+    max-width: 96vw;
+    overflow-x: auto;
+  }
+  .side-panel {
+    top: 60px;
+    left: 8px;
+    width: 220px;
+    max-height: calc(100vh - 120px);
+    overflow-y: auto;
+  }
+  .bottom-bar {
+    bottom: 12px;
+    left: 12px;
+  }
+  .corner-actions {
+    bottom: 12px;
+    right: 12px;
+  }
+}
+
+/* Mobile Notice Modal Overlay */
+.mobile-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+.mobile-modal-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-lg);
+  padding: 28px 24px;
+  max-width: 360px;
+  width: 100%;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  animation: modalPop 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@keyframes modalPop {
+  0% { transform: scale(0.9); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.mobile-modal-icon {
+  font-size: 42px;
+  margin-bottom: 12px;
+}
+
+.mobile-modal-title {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 10px;
+}
+
+.mobile-modal-desc {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.mobile-modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: center;
+}
+
+.mobile-modal-btn {
+  padding: 10px 22px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: all var(--transition-fast);
+}
+
+.mobile-modal-btn.primary {
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.mobile-modal-btn.primary:hover {
+  background: var(--accent-hover);
 }

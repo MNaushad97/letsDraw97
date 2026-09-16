@@ -7,17 +7,29 @@ import rough from 'roughjs';
 let _uid = 0;
 const uid = () => `s${++_uid}`;
 
+const getClientCoords = (e) => {
+  if (e.touches && e.touches.length > 0) {
+    return { clientX: e.touches[0].clientX, clientY: e.touches[0].clientY };
+  }
+  if (e.changedTouches && e.changedTouches.length > 0) {
+    return { clientX: e.changedTouches[0].clientX, clientY: e.changedTouches[0].clientY };
+  }
+  return { clientX: e.clientX ?? 0, clientY: e.clientY ?? 0 };
+};
+
 const getPos = (e, canvas, pan, zoom = 100) => {
   const r = canvas.getBoundingClientRect();
   const scale = zoom / 100;
+  const { clientX, clientY } = getClientCoords(e);
   return {
-    x: (e.clientX - r.left - pan.x) / scale,
-    y: (e.clientY - r.top - pan.y) / scale,
+    x: (clientX - r.left - pan.x) / scale,
+    y: (clientY - r.top - pan.y) / scale,
   };
 };
 const getScreenPos = (e, canvas) => {
   const r = canvas.getBoundingClientRect();
-  return { x: e.clientX - r.left, y: e.clientY - r.top };
+  const { clientX, clientY } = getClientCoords(e);
+  return { x: clientX - r.left, y: clientY - r.top };
 };
 
 /* ─── Bounding box ─────────────────────────────────────────── */
@@ -64,14 +76,14 @@ function bounds(s) {
 
 /* ─── 8 resize handles + Rotation + 3-Point Arrow Handles ─── */
 const HANDLE_DEFS = [
-  { id: 'nw', rx: 0, ry: 0, cursor: 'nwse-resize' },
-  { id: 'n', rx: 0.5, ry: 0, cursor: 'ns-resize' },
-  { id: 'ne', rx: 1, ry: 0, cursor: 'nesw-resize' },
-  { id: 'e', rx: 1, ry: 0.5, cursor: 'ew-resize' },
-  { id: 'se', rx: 1, ry: 1, cursor: 'nwse-resize' },
-  { id: 's', rx: 0.5, ry: 1, cursor: 'ns-resize' },
-  { id: 'sw', rx: 0, ry: 1, cursor: 'nesw-resize' },
-  { id: 'w', rx: 0, ry: 0.5, cursor: 'ew-resize' },
+  { id: 'nw', rx: 0,   ry: 0,   cursor: 'nwse-resize' },
+  { id: 'n',  rx: 0.5, ry: 0,   cursor: 'ns-resize'   },
+  { id: 'ne', rx: 1,   ry: 0,   cursor: 'nesw-resize'  },
+  { id: 'e',  rx: 1,   ry: 0.5, cursor: 'ew-resize'   },
+  { id: 'se', rx: 1,   ry: 1,   cursor: 'nwse-resize'  },
+  { id: 's',  rx: 0.5, ry: 1,   cursor: 'ns-resize'   },
+  { id: 'sw', rx: 0,   ry: 1,   cursor: 'nesw-resize'  },
+  { id: 'w',  rx: 0,   ry: 0.5, cursor: 'ew-resize'   },
 ];
 const HANDLE_R = 6;
 
@@ -104,8 +116,8 @@ function getHandles(s) {
     const midY = s.cy ?? (s.y1 + s.y2) / 2;
 
     handles.push({ id: 'arrow_start', cursor: 'crosshair', type: 'point', x: s.x1, y: s.y1 });
-    handles.push({ id: 'arrow_mid', cursor: 'grab', type: 'point', x: midX, y: midY });
-    handles.push({ id: 'arrow_end', cursor: 'crosshair', type: 'point', x: s.x2, y: s.y2 });
+    handles.push({ id: 'arrow_mid',   cursor: 'grab',      type: 'point', x: midX, y: midY });
+    handles.push({ id: 'arrow_end',   cursor: 'crosshair', type: 'point', x: s.x2, y: s.y2 });
   }
 
   return handles;
@@ -159,7 +171,7 @@ function rawHitShape(px, py, s) {
       const midX = s.cx ?? (s.x1 + s.x2) / 2;
       const midY = s.cy ?? (s.y1 + s.y2) / 2;
       return distToSegment(px, py, s.x1, s.y1, midX, midY) <= pad ||
-        distToSegment(px, py, midX, midY, s.x2, s.y2) <= pad;
+             distToSegment(px, py, midX, midY, s.x2, s.y2) <= pad;
     }
     case 'brush': {
       if (!s.pts || s.pts.length === 0) return false;
@@ -217,7 +229,7 @@ function shouldEraseShape(s, pos, er) {
       const midX = s.cx ?? (s.x1 + s.x2) / 2;
       const midY = s.cy ?? (s.y1 + s.y2) / 2;
       return distToSegment(pos.x, pos.y, s.x1, s.y1, midX, midY) <= pad + (s.sz || 4) / 2 ||
-        distToSegment(pos.x, pos.y, midX, midY, s.x2, s.y2) <= pad + (s.sz || 4) / 2;
+             distToSegment(pos.x, pos.y, midX, midY, s.x2, s.y2) <= pad + (s.sz || 4) / 2;
     }
     case 'text': {
       const b = bounds(s);
@@ -314,7 +326,7 @@ function applyResize(s, handleId, mx, my) {
   const newH = Math.max(Math.abs(newY2 - newY1), 10);
 
   if (s.type === 'text') {
-    const origH = h || 1;
+    const origH  = h || 1;
     const origFs = s.fs || 22;
     const scaleRatio = newH / origH;
     const newFs = Math.max(12, Math.round(origFs * scaleRatio));
@@ -337,11 +349,11 @@ function applyResize(s, handleId, mx, my) {
 
 /* ─── RoughJS Options generator ──────────────────────────────── */
 function getRoughOptions(s) {
-  const isClean = s.sloppiness === 0;
+  const isClean   = s.sloppiness === 0;
   const isCartoon = s.sloppiness === 2;
 
   const roughness = isClean ? 0 : isCartoon ? 2.8 : 1.4;
-  const bowing = isClean ? 0 : isCartoon ? 2.8 : 1.4;
+  const bowing    = isClean ? 0 : isCartoon ? 2.8 : 1.4;
 
   const strokeDash = s.strokeStyle === 'dashed'
     ? [10, 8]
@@ -380,7 +392,7 @@ function drawShape(ctx, rc, s) {
   switch (s.type) {
     case 'rectangle': {
       const x = Math.min(s.x1, s.x2), y = Math.min(s.y1, s.y2);
-      const w = Math.abs(s.x2 - s.x1), h = Math.abs(s.y2 - s.y1);
+      const w = Math.abs(s.x2 - s.x1),   h = Math.abs(s.y2 - s.y1);
       if (w > 0 && h > 0) {
         rc.rectangle(x, y, w, h, opts);
       }
@@ -388,7 +400,7 @@ function drawShape(ctx, rc, s) {
     }
     case 'circle': {
       const rx = Math.abs(s.x2 - s.x1) / 2, ry = Math.abs(s.y2 - s.y1) / 2;
-      const cx = (s.x1 + s.x2) / 2, cy = (s.y1 + s.y2) / 2;
+      const cx = (s.x1 + s.x2) / 2,         cy = (s.y1 + s.y2) / 2;
       if (rx > 0 && ry > 0) {
         rc.ellipse(cx, cy, rx * 2, ry * 2, opts);
       }
@@ -596,33 +608,33 @@ const Canvas = forwardRef(function Canvas(
   }, ref,
 ) {
   const canvasRef = useRef(null);
-  const [shapes, setShapes] = useState([]);
-  const [selId, setSelId] = useState(null);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const [cursor, setCursor] = useState('crosshair');
+  const [shapes,  setShapes] = useState([]);
+  const [selId,   setSelId]  = useState(null);
+  const [pan,     setPan]    = useState({ x: 0, y: 0 });
+  const [cursor,  setCursor] = useState('crosshair');
 
   const clipboardRef = useRef(null);
 
   // Always-fresh refs
-  const shapesRef = useRef([]);
-  const selIdRef = useRef(null);
-  const panRef = useRef({ x: 0, y: 0 });
-  const zoomRef = useRef(zoom);
-  const toolRef = useRef(tool);
-  const colorRef = useRef(color);
-  const bgRef = useRef(backgroundColor);
-  const fillStRef = useRef(fillStyle);
-  const szRef = useRef(brushSize);
+  const shapesRef   = useRef([]);
+  const selIdRef    = useRef(null);
+  const panRef      = useRef({ x: 0, y: 0 });
+  const zoomRef     = useRef(zoom);
+  const toolRef     = useRef(tool);
+  const colorRef    = useRef(color);
+  const bgRef       = useRef(backgroundColor);
+  const fillStRef   = useRef(fillStyle);
+  const szRef       = useRef(brushSize);
   const strokeStRef = useRef(strokeStyle);
-  const slopRef = useRef(sloppiness);
-  const fontRef = useRef(fontFamily);
-  const fsRef = useRef(fontSize);
-  const alignRef = useRef(textAlign);
-  const opRef = useRef(opacity);
+  const slopRef     = useRef(sloppiness);
+  const fontRef     = useRef(fontFamily);
+  const fsRef       = useRef(fontSize);
+  const alignRef    = useRef(textAlign);
+  const opRef       = useRef(opacity);
 
   useEffect(() => { shapesRef.current = shapes; }, [shapes]);
   useEffect(() => {
-    selIdRef.current = selId;
+    selIdRef.current  = selId;
     if (selId) {
       const selected = shapesRef.current.find(s => s.id === selId);
       if (selected) onSelectShape?.(selected);
@@ -631,19 +643,19 @@ const Canvas = forwardRef(function Canvas(
     }
   }, [selId, onSelectShape]);
 
-  useEffect(() => { panRef.current = pan; }, [pan]);
-  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
-  useEffect(() => { toolRef.current = tool; }, [tool]);
-  useEffect(() => { colorRef.current = color; }, [color]);
-  useEffect(() => { bgRef.current = backgroundColor; }, [backgroundColor]);
-  useEffect(() => { fillStRef.current = fillStyle; }, [fillStyle]);
-  useEffect(() => { szRef.current = brushSize; }, [brushSize]);
-  useEffect(() => { strokeStRef.current = strokeStyle; }, [strokeStyle]);
-  useEffect(() => { slopRef.current = sloppiness; }, [sloppiness]);
-  useEffect(() => { fontRef.current = fontFamily; }, [fontFamily]);
-  useEffect(() => { fsRef.current = fontSize; }, [fontSize]);
-  useEffect(() => { alignRef.current = textAlign; }, [textAlign]);
-  useEffect(() => { opRef.current = opacity; }, [opacity]);
+  useEffect(() => { panRef.current      = pan;             }, [pan]);
+  useEffect(() => { zoomRef.current     = zoom;            }, [zoom]);
+  useEffect(() => { toolRef.current     = tool;            }, [tool]);
+  useEffect(() => { colorRef.current    = color;           }, [color]);
+  useEffect(() => { bgRef.current       = backgroundColor; }, [backgroundColor]);
+  useEffect(() => { fillStRef.current   = fillStyle;       }, [fillStyle]);
+  useEffect(() => { szRef.current       = brushSize;       }, [brushSize]);
+  useEffect(() => { strokeStRef.current = strokeStyle;     }, [strokeStyle]);
+  useEffect(() => { slopRef.current     = sloppiness;      }, [sloppiness]);
+  useEffect(() => { fontRef.current     = fontFamily;      }, [fontFamily]);
+  useEffect(() => { fsRef.current       = fontSize;        }, [fontSize]);
+  useEffect(() => { alignRef.current    = textAlign;       }, [textAlign]);
+  useEffect(() => { opRef.current       = opacity;         }, [opacity]);
 
   // Sync prop changes to currently selected shape
   useEffect(() => {
@@ -670,32 +682,32 @@ const Canvas = forwardRef(function Canvas(
   useEffect(() => {
     if (tool !== 'select') {
       setSelId(null);
-      selIdRef.current = null;
-      movingId.current = null;
+      selIdRef.current   = null;
+      movingId.current   = null;
       resizingId.current = null;
-      moving.current = false;
-      resizing.current = false;
+      moving.current     = false;
+      resizing.current   = false;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tool]);
 
   // Interaction refs
-  const drawing = useRef(false);
-  const moving = useRef(false);
-  const resizing = useRef(false);
-  const panning = useRef(false);
-  const hasDragged = useRef(false);
-  const mouseDownPos = useRef(null);
-  const curShape = useRef(null);
-  const dragOrig = useRef({ x: 0, y: 0 });
-  const resizeHnd = useRef(null);
-  const panStart = useRef({ mx: 0, my: 0, px: 0, py: 0 });
+  const drawing        = useRef(false);
+  const moving         = useRef(false);
+  const resizing       = useRef(false);
+  const panning        = useRef(false);
+  const hasDragged     = useRef(false);
+  const mouseDownPos   = useRef(null);
+  const curShape       = useRef(null);
+  const dragOrig       = useRef({ x: 0, y: 0 });
+  const resizeHnd      = useRef(null);
+  const panStart       = useRef({ mx: 0, my: 0, px: 0, py: 0 });
 
-  const movingId = useRef(null);
+  const movingId   = useRef(null);
   const resizingId = useRef(null);
 
   // History
-  const hist = useRef([]);
+  const hist    = useRef([]);
   const redoStk = useRef([]);
 
   const pushHist = useCallback(() => {
@@ -849,7 +861,7 @@ const Canvas = forwardRef(function Canvas(
     const canvas = canvasRef.current;
     let raf;
     const resize = () => {
-      canvas.width = canvas.offsetWidth;
+      canvas.width  = canvas.offsetWidth;
       canvas.height = canvas.offsetHeight;
       redrawAll(canvas, shapesRef.current, selIdRef.current, panRef.current, zoomRef.current);
     };
@@ -907,7 +919,7 @@ const Canvas = forwardRef(function Canvas(
 
   // ── TEXT ─────────────────────────────────────────────────
   const [textState, setTextState] = useState(null);
-  const textRef = useRef(null);
+  const textRef      = useRef(null);
   const textStateRef = useRef(null);
   useEffect(() => { textStateRef.current = textState; }, [textState]);
 
@@ -962,13 +974,13 @@ const Canvas = forwardRef(function Canvas(
   const onMouseDown = useCallback((e) => {
     if (e.button !== 0) return;
     const canvas = canvasRef.current;
-    const pan = panRef.current;
-    const zm = zoomRef.current;
-    const pos = getPos(e, canvas, pan, zm);
-    const t = toolRef.current;
+    const pan    = panRef.current;
+    const zm     = zoomRef.current;
+    const pos    = getPos(e, canvas, pan, zm);
+    const t      = toolRef.current;
 
     mouseDownPos.current = pos;
-    hasDragged.current = false;
+    hasDragged.current   = false;
 
     // IF A TEXT AREA IS ALREADY OPEN: CLICKING OUTSIDE COMMITS TEXT AND STOPS!
     if (textStateRef.current) {
@@ -989,9 +1001,9 @@ const Canvas = forwardRef(function Canvas(
         const h = hitHandle(pos.x, pos.y, selShape);
         if (h) {
           pushHist();
-          resizing.current = true;
+          resizing.current   = true;
           resizingId.current = selShape.id;
-          resizeHnd.current = h.id;
+          resizeHnd.current  = h.id;
           setCursor(h.cursor);
           return;
         }
@@ -1029,7 +1041,7 @@ const Canvas = forwardRef(function Canvas(
         setSelId(found.id);
         movingId.current = found.id;
         pushHist();
-        moving.current = true;
+        moving.current   = true;
         dragOrig.current = pos;
         setCursor('move');
       } else {
@@ -1046,7 +1058,7 @@ const Canvas = forwardRef(function Canvas(
       setSelId(grabbed.id);
       movingId.current = grabbed.id;
       pushHist();
-      moving.current = true;
+      moving.current   = true;
       dragOrig.current = pos;
       setCursor('move');
       return;
@@ -1078,9 +1090,9 @@ const Canvas = forwardRef(function Canvas(
   // ── MOUSE MOVE ───────────────────────────────────────────
   const onMouseMove = useCallback((e) => {
     const canvas = canvasRef.current;
-    const pan = panRef.current;
-    const zm = zoomRef.current;
-    const pos = getPos(e, canvas, pan, zm);
+    const pan    = panRef.current;
+    const zm     = zoomRef.current;
+    const pos    = getPos(e, canvas, pan, zm);
 
     if (mouseDownPos.current) {
       if (Math.hypot(pos.x - mouseDownPos.current.x, pos.y - mouseDownPos.current.y) > 3) {
@@ -1107,8 +1119,8 @@ const Canvas = forwardRef(function Canvas(
 
     // Move selected shape
     if (moving.current && movingId.current) {
-      const dx = pos.x - dragOrig.current.x;
-      const dy = pos.y - dragOrig.current.y;
+      const dx  = pos.x - dragOrig.current.x;
+      const dy  = pos.y - dragOrig.current.y;
       dragOrig.current = pos;
       setShapes(prev => prev.map(s => {
         if (s.id !== movingId.current) return s;
@@ -1171,23 +1183,23 @@ const Canvas = forwardRef(function Canvas(
 
   // ── MOUSE UP ─────────────────────────────────────────────
   const onMouseUp = useCallback(() => {
-    panning.current = false;
+    panning.current      = false;
     mouseDownPos.current = null;
 
     if (resizing.current) {
-      resizing.current = false;
+      resizing.current   = false;
       resizingId.current = null;
-      resizeHnd.current = null;
+      resizeHnd.current  = null;
       return;
     }
     if (moving.current) {
-      moving.current = false;
+      moving.current   = false;
       movingId.current = null;
       return;
     }
 
     const wasDrawing = drawing.current;
-    drawing.current = false;
+    drawing.current  = false;
 
     if (!wasDrawing) return;
 
@@ -1225,11 +1237,11 @@ const Canvas = forwardRef(function Canvas(
   // ── DOUBLE CLICK → ONLY open text when hitting a shape OR text tool active ──
   const onDblClick = useCallback((e) => {
     const canvas = canvasRef.current;
-    const pan = panRef.current;
-    const zm = zoomRef.current;
-    const pos = getPos(e, canvas, pan, zm);
-    const sp = getScreenPos(e, canvas);
-    const t = toolRef.current;
+    const pan    = panRef.current;
+    const zm     = zoomRef.current;
+    const pos    = getPos(e, canvas, pan, zm);
+    const sp     = getScreenPos(e, canvas);
+    const t      = toolRef.current;
 
     const hit = [...shapesRef.current].reverse().find(s => hitShape(pos.x, pos.y, s));
     if (hit || t === 'text') {
@@ -1289,7 +1301,11 @@ const Canvas = forwardRef(function Canvas(
 
   useEffect(() => {
     window.addEventListener('mouseup', onMouseUp);
-    return () => window.removeEventListener('mouseup', onMouseUp);
+    window.addEventListener('touchend', onMouseUp);
+    return () => {
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('touchend', onMouseUp);
+    };
   }, [onMouseUp]);
 
   const fontFamilyCss = fontRef.current === 'hand'
@@ -1300,14 +1316,28 @@ const Canvas = forwardRef(function Canvas(
         ? "Georgia, serif"
         : "Inter, sans-serif";
 
+  const handleTouchStart = useCallback((e) => {
+    if (e.touches && e.touches.length > 1) return; // 2+ finger pinch handled by wheel/gesture
+    onMouseDown(e);
+  }, [onMouseDown]);
+
+  const handleTouchMove = useCallback((e) => {
+    if (e.touches && e.touches.length > 1) return;
+    onMouseMove(e);
+  }, [onMouseMove]);
+
   return (
     <>
       <canvas
         ref={canvasRef}
         className="drawing-canvas"
-        style={{ cursor }}
+        style={{ cursor, touchAction: 'none' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={onMouseUp}
+        onTouchCancel={onMouseUp}
         onMouseLeave={() => { if (drawing.current) onMouseUp(); }}
         onDoubleClick={onDblClick}
       />
@@ -1332,7 +1362,7 @@ const Canvas = forwardRef(function Canvas(
           style={{
             position: 'absolute',
             left: textState.screenX,
-            top: textState.screenY,
+            top:  textState.screenY,
             minWidth: 140,
             minHeight: 40,
             padding: '4px 8px',
