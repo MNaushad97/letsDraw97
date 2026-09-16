@@ -1,4 +1,30 @@
-import React from 'react';
+import React, { useState } from 'react';
+
+const ChevronLeftIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M15 18l-6-6 6-6" />
+  </svg>
+);
+
+const ChevronRightIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M9 18l6-6-6-6" />
+  </svg>
+);
+
+const SlidersIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <line x1="4" y1="21" x2="4" y2="14" />
+    <line x1="4" y1="10" x2="4" y2="3" />
+    <line x1="12" y1="21" x2="12" y2="12" />
+    <line x1="12" y1="8" x2="12" y2="3" />
+    <line x1="20" y1="21" x2="20" y2="16" />
+    <line x1="20" y1="12" x2="20" y2="3" />
+    <line x1="1" y1="14" x2="7" y2="14" />
+    <line x1="9" y1="8" x2="15" y2="8" />
+    <line x1="17" y1="16" x2="23" y2="16" />
+  </svg>
+);
 
 // ── Preset Palettes ──────────────────────────────────────────
 const STROKE_PRESETS = [
@@ -175,9 +201,9 @@ export default function PropertiesPanel({
   fontFamily,       onFontFamilyChange,
   fontSize,         onFontSizeChange,
   textAlign,        onTextAlignChange,
-  opacity,          onOpacityChange,
   onLayerChange,
 }) {
+  const [isCollapsed, setIsCollapsed] = useState(false);
   const currentType = selectedShape?.type || activeTool;
   const isTextMode  = currentType === 'text';
 
@@ -190,8 +216,34 @@ export default function PropertiesPanel({
     currentType !== 'pencil' &&
     currentType !== 'draw';
 
+  if (isCollapsed) {
+    return (
+      <button
+        className="side-panel-toggle-collapsed"
+        onClick={() => setIsCollapsed(false)}
+        title="Expand Properties Panel"
+        aria-label="Expand Properties Panel"
+      >
+        <SlidersIcon />
+        <span className="toggle-label">Properties</span>
+        <ChevronRightIcon />
+      </button>
+    );
+  }
+
   return (
     <aside className="side-panel" aria-label="Properties Panel">
+      <div className="panel-header-row">
+        <span className="panel-header-title">Properties</span>
+        <button
+          className="panel-collapse-btn"
+          onClick={() => setIsCollapsed(true)}
+          title="Collapse Panel"
+          aria-label="Collapse Panel"
+        >
+          <ChevronLeftIcon />
+        </button>
+      </div>
 
       {/* ── STROKE COLOR ── */}
       <section className="prop-group">

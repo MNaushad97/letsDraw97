@@ -199,6 +199,82 @@ html, body, #root {
   gap: 12px;
   max-height: calc(100vh - 160px);
   overflow-y: auto;
+  animation: panelSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes panelSlideIn {
+  from { opacity: 0; transform: translateX(-12px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+/* Panel Header & Collapse Toggle */
+.panel-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.panel-header-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.panel-collapse-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.panel-collapse-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* Floating Collapsed Button */
+.side-panel-toggle-collapsed {
+  position: absolute;
+  top: 76px;
+  left: 16px;
+  z-index: 100;
+
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  animation: panelSlideIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.side-panel-toggle-collapsed:hover {
+  background: var(--bg-surface);
+  border-color: var(--border-active);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(-1px);
 }
 
 .prop-group {
@@ -549,27 +625,47 @@ html, body, #root {
 
 /* Mobile Responsiveness */
 @media (max-width: 768px) {
+  /* Toolbar moves to bottom for thumb reach */
   .top-bar {
-    top: 8px;
-    padding: 3px 6px;
-    gap: 2px;
-    max-width: 96vw;
+    top: auto;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 4px 8px;
+    gap: 4px;
+    max-width: 95vw;
     overflow-x: auto;
+    z-index: 150;
+    box-shadow: var(--shadow-lg);
   }
+
+  /* Side panel & collapsed toggle stay top-left */
   .side-panel {
     top: 60px;
-    left: 8px;
+    left: 10px;
     width: 220px;
-    max-height: calc(100vh - 120px);
+    max-height: calc(100vh - 140px);
     overflow-y: auto;
   }
-  .bottom-bar {
-    bottom: 12px;
-    left: 12px;
+
+  .side-panel-toggle-collapsed {
+    top: 60px;
+    left: 10px;
   }
+
+  /* Zoom controls move to top left next to logo */
+  .bottom-bar {
+    top: 16px;
+    left: auto;
+    right: 170px;
+    bottom: auto;
+  }
+
+  /* Export / Undo actions stay top right */
   .corner-actions {
-    bottom: 12px;
+    top: 16px;
     right: 12px;
+    bottom: auto;
   }
 }
 
