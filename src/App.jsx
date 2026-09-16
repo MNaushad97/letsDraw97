@@ -12,20 +12,20 @@ export default function App() {
   const canvasRef = useRef(null);
 
   // ── Tool state ──────────────────────────────────────────
-  const [tool, setTool]                     = useState('brush');
-  const [color, setColor]                   = useState('#1e1e1e');
+  const [tool, setTool] = useState('brush');
+  const [color, setColor] = useState('#1e1e1e');
   const [backgroundColor, setBackgroundColor] = useState('transparent');
-  const [fillStyle, setFillStyle]           = useState('hachure');
-  const [brushSize, setBrushSize]           = useState(2);
-  const [strokeStyle, setStrokeStyle]       = useState('solid');
-  const [sloppiness, setSloppiness]         = useState(1);
-  const [fontFamily, setFontFamily]         = useState('hand');
-  const [fontSize, setFontSize]             = useState(22);
-  const [textAlign, setTextAlign]           = useState('left');
-  const [opacity, setOpacity]               = useState(100);
+  const [fillStyle, setFillStyle] = useState('hachure');
+  const [brushSize, setBrushSize] = useState(2);
+  const [strokeStyle, setStrokeStyle] = useState('solid');
+  const [sloppiness, setSloppiness] = useState(1);
+  const [fontFamily, setFontFamily] = useState('hand');
+  const [fontSize, setFontSize] = useState(22);
+  const [textAlign, setTextAlign] = useState('left');
+  const [opacity, setOpacity] = useState(100);
 
   // ── Selected Shape State ────────────────────────────────
-  const [selectedShape, setSelectedShape]   = useState(null);
+  const [selectedShape, setSelectedShape] = useState(null);
 
   // ── History state ───────────────────────────────────────
   const [canUndo, setCanUndo] = useState(false);
@@ -51,7 +51,7 @@ export default function App() {
   const [zoom, setZoom] = useState(100);
 
   // ── Theme ────────────────────────────────────────────────
-  const [theme, setTheme] = useState(() => localStorage.getItem('letsdraw-theme') || 'dark');
+  const [theme, setTheme] = useState(() => localStorage.getItem('letsdraw-theme') || 'light');
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
@@ -116,8 +116,8 @@ export default function App() {
     canvasRef.current?.changeLayer(action);
   };
 
-  const handleZoomIn    = () => setZoom((z) => Math.min(z + 10, 400));
-  const handleZoomOut   = () => setZoom((z) => Math.max(z - 10, 15));
+  const handleZoomIn = () => setZoom((z) => Math.min(z + 10, 400));
+  const handleZoomOut = () => setZoom((z) => Math.max(z - 10, 15));
   const handleZoomReset = () => setZoom(100);
 
   return (
@@ -172,16 +172,16 @@ export default function App() {
       <PropertiesPanel
         activeTool={tool}
         selectedShape={selectedShape}
-        color={color}                       onColorChange={setColor}
-        backgroundColor={backgroundColor}   onBackgroundColorChange={setBackgroundColor}
-        fillStyle={fillStyle}               onFillStyleChange={setFillStyle}
-        brushSize={brushSize}               onBrushSizeChange={setBrushSize}
-        strokeStyle={strokeStyle}           onStrokeStyleChange={setStrokeStyle}
-        sloppiness={sloppiness}             onSloppinessChange={setSloppiness}
-        fontFamily={fontFamily}             onFontFamilyChange={setFontFamily}
-        fontSize={fontSize}                 onFontSizeChange={setFontSize}
-        textAlign={textAlign}               onTextAlignChange={setTextAlign}
-        opacity={opacity}                   onOpacityChange={setOpacity}
+        color={color} onColorChange={setColor}
+        backgroundColor={backgroundColor} onBackgroundColorChange={setBackgroundColor}
+        fillStyle={fillStyle} onFillStyleChange={setFillStyle}
+        brushSize={brushSize} onBrushSizeChange={setBrushSize}
+        strokeStyle={strokeStyle} onStrokeStyleChange={setStrokeStyle}
+        sloppiness={sloppiness} onSloppinessChange={setSloppiness}
+        fontFamily={fontFamily} onFontFamilyChange={setFontFamily}
+        fontSize={fontSize} onFontSizeChange={setFontSize}
+        textAlign={textAlign} onTextAlignChange={setTextAlign}
+        opacity={opacity} onOpacityChange={setOpacity}
         onLayerChange={handleLayerChange}
       />
 
