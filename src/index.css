@@ -623,49 +623,66 @@ html, body, #root {
   color: var(--text-primary);
 }
 
-/* Mobile Responsiveness */
+/* Mobile Responsiveness & Safe Area Protection */
 @media (max-width: 768px) {
-  /* Toolbar moves to bottom for thumb reach */
+  /* Main Drawing Toolbar anchored at Bottom Center with safe-area padding */
   .top-bar {
     top: auto;
-    bottom: 16px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
     left: 50%;
     transform: translateX(-50%);
-    padding: 4px 8px;
-    gap: 4px;
-    max-width: 95vw;
+    padding: 4px 6px;
+    gap: 3px;
+    max-width: 96vw;
     overflow-x: auto;
-    z-index: 150;
+    z-index: 250;
     box-shadow: var(--shadow-lg);
   }
 
-  /* Side panel & collapsed toggle stay top-left */
-  .side-panel {
-    top: 60px;
+  /* Zoom controls placed at Bottom Left with safe-area padding */
+  .bottom-bar {
+    top: auto;
+    right: auto;
     left: 10px;
-    width: 220px;
+    bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    z-index: 200;
+    padding: 3px 6px;
+  }
+
+  /* Top Right Actions (Undo, Redo, Clear, Export) */
+  .corner-actions {
+    top: calc(12px + env(safe-area-inset-top, 0px));
+    right: 10px;
+    left: auto;
+    bottom: auto;
+    z-index: 200;
+    gap: 4px;
+  }
+
+  /* Hide long text labels on mobile header action buttons so icons never collide */
+  .corner-actions .btn-label {
+    display: none;
+  }
+
+  .corner-actions .action-btn {
+    padding: 6px 10px;
+    min-width: unset;
+  }
+
+  /* Side panel & Collapsed toggle button top-left below logo */
+  .side-panel {
+    top: calc(54px + env(safe-area-inset-top, 0px));
+    left: 10px;
+    width: 215px;
     max-height: calc(100vh - 140px);
     overflow-y: auto;
+    z-index: 180;
   }
 
   .side-panel-toggle-collapsed {
-    top: 60px;
+    top: calc(54px + env(safe-area-inset-top, 0px));
     left: 10px;
-  }
-
-  /* Zoom controls move to top left next to logo */
-  .bottom-bar {
-    top: 16px;
-    left: auto;
-    right: 170px;
-    bottom: auto;
-  }
-
-  /* Export / Undo actions stay top right */
-  .corner-actions {
-    top: 16px;
-    right: 12px;
-    bottom: auto;
+    z-index: 180;
   }
 }
 

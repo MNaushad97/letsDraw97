@@ -213,7 +213,7 @@ export default function App() {
           title="Undo (Ctrl+Z)"
           style={{ opacity: canUndo ? 1 : 0.35 }}
         >
-          <Undo2 size={14} /> Undo
+          <Undo2 size={14} /> <span className="btn-label">Undo</span>
         </button>
         <button
           id="redo-btn"
@@ -224,7 +224,7 @@ export default function App() {
           title="Redo (Ctrl+Y)"
           style={{ opacity: canRedo ? 1 : 0.35 }}
         >
-          <Redo2 size={14} /> Redo
+          <Redo2 size={14} /> <span className="btn-label">Redo</span>
         </button>
         <button
           id="clear-btn"
@@ -233,7 +233,7 @@ export default function App() {
           aria-label="Clear canvas"
           title="Clear canvas"
         >
-          <Trash2 size={14} /> Clear
+          <Trash2 size={14} /> <span className="btn-label">Clear</span>
         </button>
         <button
           id="download-btn"
@@ -242,7 +242,7 @@ export default function App() {
           aria-label="Download image"
           title="Export as PNG"
         >
-          <Download size={14} /> Export
+          <Download size={14} /> <span className="btn-label">Export</span>
         </button>
       </div>
 
