@@ -201,6 +201,7 @@ export default function PropertiesPanel({
   fontFamily,       onFontFamilyChange,
   fontSize,         onFontSizeChange,
   textAlign,        onTextAlignChange,
+  opacity,          onOpacityChange,
   onLayerChange,
 }) {
   const [isCollapsed, setIsCollapsed] = useState(false);

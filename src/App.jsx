@@ -53,16 +53,6 @@ export default function App() {
   // ── Theme ────────────────────────────────────────────────
   const [theme, setTheme] = useState(() => localStorage.getItem('letsdraw-theme') || 'light');
 
-  // ── Mobile Device Notice Modal ───────────────────────────
-  const [showMobileNotice, setShowMobileNotice] = useState(false);
-
-  useEffect(() => {
-    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-      setShowMobileNotice(true);
-    }
-  }, []);
-
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('letsdraw-theme', theme);
@@ -264,27 +254,6 @@ export default function App() {
       >
         {toast}
       </div>
-
-      {/* Mobile Device Notice Modal */}
-      {showMobileNotice && (
-        <div className="mobile-modal-overlay">
-          <div className="mobile-modal-card">
-            <div className="mobile-modal-icon">💻</div>
-            <h3 className="mobile-modal-title">Desktop Recommended</h3>
-            <p className="mobile-modal-desc">
-              <strong>letsDraw97</strong> is optimized for desktop and laptop computers for the best drawing, keyboard shortcuts, and full canvas tools.
-            </p>
-            <div className="mobile-modal-actions">
-              <button
-                className="mobile-modal-btn primary"
-                onClick={() => setShowMobileNotice(false)}
-              >
-                Continue Anyway
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
