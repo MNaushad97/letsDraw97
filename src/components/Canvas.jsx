@@ -843,13 +843,33 @@ const Canvas = forwardRef(function Canvas(
     cut: cutSelected,
     paste: pasteSelected,
     duplicate: duplicateSelected,
-    download() {
+    download(theme = 'light') {
       const c = canvasRef.current;
+      if (!c) return;
       const off = Object.assign(document.createElement('canvas'), { width: c.width, height: c.height });
       const oc = off.getContext('2d');
-      oc.fillStyle = '#13131a'; oc.fillRect(0, 0, off.width, off.height);
+      const isDark = theme === 'dark';
+
+      // Fill theme background
+      oc.fillStyle = isDark ? '#13131a' : '#ffffff';
+      oc.fillRect(0, 0, off.width, off.height);
+
+      // Subtle Dot grid overlay
+      oc.fillStyle = isDark ? 'rgba(108, 99, 255, 0.22)' : 'rgba(90, 82, 232, 0.15)';
+      for (let x = 14; x < off.width; x += 28) {
+        for (let y = 14; y < off.height; y += 28) {
+          oc.beginPath();
+          oc.arc(x, y, 1, 0, Math.PI * 2);
+          oc.fill();
+        }
+      }
+
       oc.drawImage(c, 0, 0);
-      Object.assign(document.createElement('a'), { download: 'letsdraw97.png', href: off.toDataURL() }).click();
+
+      const a = document.createElement('a');
+      a.download = `letsdraw97-${theme}.png`;
+      a.href = off.toDataURL('image/png');
+      a.click();
     },
   }), [pushHist, onHistoryChange, changeLayer, copySelected, cutSelected, pasteSelected, duplicateSelected]);
 

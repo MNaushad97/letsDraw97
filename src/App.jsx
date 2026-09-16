@@ -108,7 +108,7 @@ export default function App() {
   };
 
   const handleDownload = () => {
-    canvasRef.current?.download();
+    canvasRef.current?.download(theme);
     showToast('💾 Image saved!');
   };
 
