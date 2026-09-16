@@ -970,9 +970,9 @@ const Canvas = forwardRef(function Canvas(
     if (!textState) hadText.current = false;
   }, [textState]);
 
-  // ── MOUSE DOWN ───────────────────────────────────────────
+  // ── MOUSE / TOUCH DOWN ───────────────────────────────────
   const onMouseDown = useCallback((e) => {
-    if (e.button !== 0) return;
+    if (e.button !== undefined && e.button !== 0) return;
     const canvas = canvasRef.current;
     const pan    = panRef.current;
     const zm     = zoomRef.current;
@@ -1316,15 +1316,40 @@ const Canvas = forwardRef(function Canvas(
         ? "Georgia, serif"
         : "Inter, sans-serif";
 
-  const handleTouchStart = useCallback((e) => {
-    if (e.touches && e.touches.length > 1) return; // 2+ finger pinch handled by wheel/gesture
-    onMouseDown(e);
-  }, [onMouseDown]);
+  // Native non-passive touch event listeners for Android Chrome & iOS Safari
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
 
-  const handleTouchMove = useCallback((e) => {
-    if (e.touches && e.touches.length > 1) return;
-    onMouseMove(e);
-  }, [onMouseMove]);
+    const handleNativeTouchStart = (e) => {
+      if (e.touches && e.touches.length > 1) return;
+      if (e.cancelable) e.preventDefault();
+      onMouseDown(e);
+    };
+
+    const handleNativeTouchMove = (e) => {
+      if (e.touches && e.touches.length > 1) return;
+      if (e.cancelable) e.preventDefault();
+      onMouseMove(e);
+    };
+
+    const handleNativeTouchEnd = (e) => {
+      if (e.cancelable) e.preventDefault();
+      onMouseUp(e);
+    };
+
+    canvas.addEventListener('touchstart', handleNativeTouchStart, { passive: false });
+    canvas.addEventListener('touchmove', handleNativeTouchMove, { passive: false });
+    canvas.addEventListener('touchend', handleNativeTouchEnd, { passive: false });
+    canvas.addEventListener('touchcancel', handleNativeTouchEnd, { passive: false });
+
+    return () => {
+      canvas.removeEventListener('touchstart', handleNativeTouchStart);
+      canvas.removeEventListener('touchmove', handleNativeTouchMove);
+      canvas.removeEventListener('touchend', handleNativeTouchEnd);
+      canvas.removeEventListener('touchcancel', handleNativeTouchEnd);
+    };
+  }, [onMouseDown, onMouseMove, onMouseUp]);
 
   return (
     <>
@@ -1334,10 +1359,6 @@ const Canvas = forwardRef(function Canvas(
         style={{ cursor, touchAction: 'none' }}
         onMouseDown={onMouseDown}
         onMouseMove={onMouseMove}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={onMouseUp}
-        onTouchCancel={onMouseUp}
         onMouseLeave={() => { if (drawing.current) onMouseUp(); }}
         onDoubleClick={onDblClick}
       />
