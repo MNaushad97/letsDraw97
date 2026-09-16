@@ -1,0 +1,542 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Kalam:wght@400;700&family=Inter:wght@400;500;600;700&display=swap');
+
+/* =============================================
+   letsDraw97 — Global Design System
+   ============================================= */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+
+  /* Dark mode (default) */
+  --bg-canvas:       #13131a;
+  --bg-surface:      #1c1c28;
+  --bg-elevated:     #242436;
+  --bg-hover:        #2e2e42;
+
+  --border-subtle:   rgba(255,255,255,0.08);
+  --border-active:   rgba(255,255,255,0.22);
+
+  --text-primary:    #f0f0fa;
+  --text-secondary:  #9090b0;
+  --text-muted:      #5a5a80;
+
+  --accent:          #6c63ff;
+  --accent-hover:    #7d75ff;
+  --accent-glow:     rgba(108, 99, 255, 0.35);
+
+  --danger:          #ff4f6a;
+
+  --glass-bg:        rgba(28, 28, 40, 0.92);
+  --glass-blur:      16px;
+
+  --radius-sm:       6px;
+  --radius-md:       10px;
+  --radius-lg:       16px;
+  --radius-xl:       24px;
+
+  --shadow-sm:       0 2px 8px rgba(0, 0, 0, 0.3);
+  --shadow-md:       0 8px 32px rgba(0, 0, 0, 0.45);
+  --shadow-lg:       0 16px 48px rgba(0, 0, 0, 0.6);
+
+  --transition-fast: 0.12s ease;
+  --transition-med:  0.22s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-theme="light"] {
+  --bg-canvas:       #f5f5fa;
+  --bg-surface:      #ffffff;
+  --bg-elevated:     #f0f0f8;
+  --bg-hover:        #e5e5f3;
+
+  --border-subtle:   rgba(0,0,0,0.08);
+  --border-active:   rgba(0,0,0,0.20);
+
+  --text-primary:    #1a1a2e;
+  --text-secondary:  #5a5a78;
+  --text-muted:      #8a8aab;
+
+  --glass-bg:        rgba(255, 255, 255, 0.94);
+  --shadow-sm:       0 2px 8px rgba(0, 0, 0, 0.06);
+  --shadow-md:       0 8px 32px rgba(0, 0, 0, 0.10);
+  --shadow-lg:       0 16px 48px rgba(0, 0, 0, 0.14);
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background: var(--bg-canvas);
+  color: var(--text-primary);
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* =============================================
+   Main App Layout
+   ============================================= */
+.app {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-canvas);
+}
+
+/* Canvas container */
+.canvas-container {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.drawing-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* =============================================
+   Top Toolbar
+   ============================================= */
+.top-bar {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+
+  display: flex;
+  align-items: center;
+  gap: 3px;
+
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 5px 8px;
+  box-shadow: var(--shadow-md);
+}
+
+.tool-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
+}
+
+.tool-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.tool-btn.active {
+  background: var(--accent);
+  color: #ffffff;
+  box-shadow: 0 4px 12px var(--accent-glow);
+}
+
+.tool-btn .kbd {
+  position: absolute;
+  bottom: 2px;
+  right: 4px;
+  font-size: 8px;
+  font-weight: 700;
+  opacity: 0.6;
+  font-family: monospace;
+}
+
+.top-bar-divider {
+  width: 1px;
+  height: 24px;
+  background: var(--border-subtle);
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+
+/* =============================================
+   Side Panel (Properties - Excalidraw Style)
+   ============================================= */
+.side-panel {
+  position: absolute;
+  top: 76px;
+  left: 16px;
+  z-index: 100;
+  width: 228px;
+
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  box-shadow: var(--shadow-md);
+
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(100vh - 160px);
+  overflow-y: auto;
+}
+
+.prop-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.prop-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.prop-label-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.prop-value {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-primary);
+  background: var(--bg-elevated);
+  padding: 1px 6px;
+  border-radius: 4px;
+}
+
+/* Color swatches */
+.swatch-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.color-swatch-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 2px solid transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+  flex-shrink: 0;
+}
+
+.color-swatch-btn:hover {
+  transform: scale(1.1);
+}
+
+.color-swatch-btn.active {
+  border-color: #6c63ff;
+  box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.35);
+  transform: scale(1.1);
+}
+
+.divider-v {
+  width: 1px;
+  height: 20px;
+  background: var(--border-subtle);
+  margin: 0 1px;
+}
+
+.color-custom-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border-subtle);
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.color-custom-btn.active {
+  border-color: #6c63ff;
+  box-shadow: 0 0 0 2px rgba(108, 99, 255, 0.35);
+}
+
+.color-custom-btn input[type="color"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.color-preview-inner {
+  width: 18px;
+  height: 18px;
+  border-radius: 5px;
+  pointer-events: none;
+}
+
+/* Button groups */
+.btn-group {
+  display: flex;
+  background: var(--bg-elevated);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.prop-btn {
+  flex: 1;
+  height: 32px;
+  border-radius: 8px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.prop-btn:hover {
+  color: var(--text-primary);
+  background: var(--bg-hover);
+}
+
+.prop-btn.active {
+  background: #e0e7ff;
+  color: #3730a3;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+[data-theme="dark"] .prop-btn.active {
+  background: #312e81;
+  color: #e0e7ff;
+}
+
+.text-style-group .prop-btn {
+  height: 30px;
+}
+
+/* Opacity slider */
+.opacity-slider {
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  accent-color: #6c63ff;
+  cursor: pointer;
+}
+
+/* =============================================
+   Bottom Bar
+   ============================================= */
+.bottom-bar {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-xl);
+  padding: 6px 12px;
+  box-shadow: var(--shadow-md);
+}
+
+.zoom-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  min-width: 42px;
+  text-align: center;
+}
+
+.icon-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+/* =============================================
+   Corner Actions
+   ============================================= */
+.corner-actions {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.action-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast), transform var(--transition-fast), box-shadow var(--transition-fast);
+  box-shadow: var(--shadow-sm);
+}
+
+.action-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border-color: var(--border-active);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+.action-btn.danger:hover {
+  background: rgba(255,79,106,0.15);
+  color: var(--danger);
+  border-color: rgba(255,79,106,0.4);
+}
+
+.action-btn.primary {
+  background: var(--accent);
+  color: #fff;
+  border-color: transparent;
+  box-shadow: 0 4px 16px var(--accent-glow);
+}
+
+.action-btn.primary:hover {
+  background: var(--accent-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 24px var(--accent-glow);
+}
+
+/* App Logo */
+.app-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  padding: 8px 14px;
+  box-shadow: var(--shadow-sm);
+}
+
+.app-logo-icon {
+  font-size: 18px;
+}
+
+.app-logo-text {
+  font-size: 14px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #a78bfa, #6c63ff, #38bdf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+
+/* Toast */
+.toast {
+  position: absolute;
+  bottom: 70px;
+  left: 50%;
+  transform: translateX(-50%) translateY(10px);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-active);
+  border-radius: var(--radius-md);
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  z-index: 200;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Canvas dot grid background */
+.canvas-grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, rgba(108,99,255,0.18) 1px, transparent 1px);
+  background-size: 28px 28px;
+  pointer-events: none;
+  transition: background-image 0.3s ease;
+}
+
+[data-theme="light"] .canvas-grid {
+  background-image: radial-gradient(circle, rgba(90,82,232,0.15) 1px, transparent 1px);
+}
+
+/* Theme toggle button */
+.theme-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur));
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.theme-toggle-btn:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
