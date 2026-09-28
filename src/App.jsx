@@ -1,4 +1,4 @@
-import { useRef, useState, useEffect, useCallback } from 'react';
+import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Undo2, Redo2, Trash2, Download, ZoomIn, ZoomOut, Maximize2, Sun, Moon
 } from 'lucide-react';
@@ -6,12 +6,48 @@ import {
 import Canvas from './components/Canvas.jsx';
 import Toolbar, { TOOL_KEY_MAP } from './components/Toolbar.jsx';
 import PropertiesPanel from './components/PropertiesPanel.jsx';
+import RoomLobby from './components/RoomLobby.jsx';
+import PeerCursors from './components/PeerCursors.jsx';
+import PresencePanel from './components/PresencePanel.jsx';
+import { useMultiplayer } from './hooks/useMultiplayer.js';
+import { generateRandomName, getNextPeerColor } from './lib/randomNames.js';
 import './index.css';
+
+// ── Read ?room= URL param ─────────────────────────────────────────
+function getRoomIdFromURL() {
+  return new URLSearchParams(window.location.search).get('room') || null;
+}
+
+// ── Generate a stable userId for this browser session ────────────
+function getOrCreateUserId() {
+  const key = 'letsdraw97-userId';
+  let id = sessionStorage.getItem(key);
+  if (!id) {
+    id = 'u_' + Math.random().toString(36).slice(2, 10);
+    sessionStorage.setItem(key, id);
+  }
+  return id;
+}
 
 export default function App() {
   const canvasRef = useRef(null);
 
-  // ── Tool state ──────────────────────────────────────────
+  // ── Multiplayer state ────────────────────────────────────────────
+  const urlRoomId = useMemo(() => getRoomIdFromURL(), []);
+  const userId    = useMemo(() => getOrCreateUserId(), []);
+  const myColor   = useMemo(() => getNextPeerColor(), []);
+
+  // Show lobby only if there is NO ?room= param in the URL
+  const [showLobby, setShowLobby]       = useState(!urlRoomId);
+  const [roomId, setRoomId]             = useState(urlRoomId || null);
+  const [userName, setUserName]         = useState(() => generateRandomName());
+  const [multiplayerEnabled, setMultiplayerEnabled] = useState(!!urlRoomId);
+  // Current pan/zoom for cursor coordinate conversion
+  const [pan, setPanState]              = useState({ x: 0, y: 0 });
+  const [zoom, setZoom]                 = useState(100);
+  const panRef = useRef({ x: 0, y: 0 });
+
+  // ── Tool state ──────────────────────────────────────────────────
   const [tool, setTool]                     = useState('brush');
   const [color, setColor]                   = useState('#1e1e1e');
   const [backgroundColor, setBackgroundColor] = useState('transparent');
@@ -24,14 +60,14 @@ export default function App() {
   const [textAlign, setTextAlign]           = useState('left');
   const [opacity, setOpacity]               = useState(100);
 
-  // ── Selected Shape State ────────────────────────────────
+  // ── Selected Shape State ─────────────────────────────────────────
   const [selectedShape, setSelectedShape]   = useState(null);
 
-  // ── History state ───────────────────────────────────────
+  // ── History state ────────────────────────────────────────────────
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
 
-  // ── Selected Shape sync ─────────────────────────────────
+  // ── Selected Shape sync ──────────────────────────────────────────
   const handleSelectShape = useCallback((shape) => {
     setSelectedShape(shape);
     if (!shape) return;
@@ -47,10 +83,7 @@ export default function App() {
     if (shape.opacity !== undefined) setOpacity(shape.opacity);
   }, []);
 
-  // ── Zoom ────────────────────────────────────────────────
-  const [zoom, setZoom] = useState(100);
-
-  // ── Theme ────────────────────────────────────────────────
+  // ── Theme ─────────────────────────────────────────────────────────
   const [theme, setTheme] = useState(() => localStorage.getItem('letsdraw-theme') || 'light');
 
   useEffect(() => {
@@ -60,7 +93,7 @@ export default function App() {
 
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
-  // ── Toast notification ──────────────────────────────────
+  // ── Toast notification ───────────────────────────────────────────
   const [toast, setToast] = useState('');
   const [toastVisible, setToastVisible] = useState(false);
   const toastTimer = useRef(null);
@@ -72,19 +105,18 @@ export default function App() {
     toastTimer.current = setTimeout(() => setToastVisible(false), 1400);
   }, []);
 
-  // ── History change callback ─────────────────────────────
+  // ── History change callback ──────────────────────────────────────
   const handleHistoryChange = useCallback(({ canUndo: u, canRedo: r }) => {
     setCanUndo(u);
     setCanRedo(r);
   }, []);
 
-  // ── Keyboard shortcuts ──────────────────────────────────
+  // ── Keyboard shortcuts ───────────────────────────────────────────
   useEffect(() => {
     const onKey = (e) => {
       const tag = document.activeElement?.tagName?.toLowerCase();
       if (tag === 'input' || tag === 'textarea') return;
       if (e.metaKey || e.ctrlKey) return;
-
       const mapped = TOOL_KEY_MAP[e.key.toLowerCase()];
       if (mapped) setTool(mapped);
     };
@@ -92,36 +124,92 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, []);
 
-  const handleUndo = () => {
-    canvasRef.current?.undo();
-    showToast('↩ Undo');
-  };
-
-  const handleRedo = () => {
-    canvasRef.current?.redo();
-    showToast('↪ Redo');
-  };
-
-  const handleClear = () => {
+  const handleUndo     = () => { canvasRef.current?.undo(); showToast('↩ Undo'); };
+  const handleRedo     = () => { canvasRef.current?.redo(); showToast('↪ Redo'); };
+  const handleClear    = () => {
     canvasRef.current?.clear();
     showToast('🗑 Canvas cleared');
+    emitCanvasCleared?.();
   };
-
-  const handleDownload = () => {
-    canvasRef.current?.download(theme);
-    showToast('💾 Image saved!');
-  };
-
-  const handleLayerChange = (action) => {
-    canvasRef.current?.changeLayer(action);
-  };
+  const handleDownload = () => { canvasRef.current?.download(theme); showToast('💾 Image saved!'); };
+  const handleLayerChange = (action) => canvasRef.current?.changeLayer(action);
 
   const handleZoomIn    = () => setZoom((z) => Math.min(z + 10, 400));
   const handleZoomOut   = () => setZoom((z) => Math.max(z - 10, 15));
   const handleZoomReset = () => setZoom(100);
 
+  // ── Multiplayer hook ─────────────────────────────────────────────
+  const {
+    isConnected,
+    peers,
+    initialShapes,
+    peerShapes,
+    emitCursorMove,
+    emitShapeAdded,
+    emitShapeUpdated,
+    emitShapeDeleted,
+    emitCanvasCleared,
+  } = useMultiplayer({
+    roomId,
+    userId,
+    userName,
+    enabled: multiplayerEnabled,
+  });
+
+  // When server sends initial shapes (on joining), load them into canvas
+  useEffect(() => {
+    if (initialShapes && initialShapes.length > 0 && canvasRef.current) {
+      canvasRef.current.loadShapes?.(initialShapes);
+    }
+  }, [initialShapes]);
+
+  // When peers add shapes, merge them into canvas
+  useEffect(() => {
+    if (peerShapes.length > 0 && canvasRef.current) {
+      canvasRef.current.mergePeerShapes?.(peerShapes);
+    }
+  }, [peerShapes]);
+
+  // Sync pan/zoom for cursor coordinate conversion
+  const handlePanChange = useCallback((newPan) => {
+    panRef.current = newPan;
+    setPanState(newPan);
+  }, []);
+
+  const handleZoomChange = useCallback((newZoom) => {
+    setZoom(newZoom);
+  }, []);
+
+  // ── Lobby handlers ───────────────────────────────────────────────
+  const handleJoinRoom = useCallback(({ roomId: rid, userName: uname }) => {
+    setUserName(uname);
+    setRoomId(rid);
+    setMultiplayerEnabled(true);
+    setShowLobby(false);
+    // Update URL so users can share the link
+    const url = new URL(window.location.href);
+    url.searchParams.set('room', rid);
+    window.history.replaceState({}, '', url.toString());
+    showToast('🎉 Room joined! Share the link with teammates.');
+  }, [showToast]);
+
+  const handleSolo = useCallback(() => {
+    setShowLobby(false);
+    setMultiplayerEnabled(false);
+  }, []);
+
+  // ── Cursor move handler (for multiplayer) ────────────────────────
+  const handleCursorMove = useCallback((x, y) => {
+    if (multiplayerEnabled) emitCursorMove(x, y);
+  }, [multiplayerEnabled, emitCursorMove]);
+
   return (
     <div className="app">
+      {/* Room Lobby (only shown when no ?room= and user hasn't chosen yet) */}
+      {showLobby && (
+        <RoomLobby onJoin={handleJoinRoom} onSolo={handleSolo} />
+      )}
+
       {/* Dot-grid background */}
       <div className="canvas-grid" aria-hidden="true" />
 
@@ -140,13 +228,44 @@ export default function App() {
         >
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
+
+        {/* Multiplayer indicator badge */}
+        {multiplayerEnabled && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 5,
+            background: isConnected ? 'rgba(46,204,113,0.15)' : 'rgba(231,76,60,0.12)',
+            border: `1px solid ${isConnected ? '#2ecc71' : '#e74c3c'}`,
+            borderRadius: 20, padding: '3px 10px',
+            fontSize: 11, fontWeight: 700,
+            color: isConnected ? '#27ae60' : '#c0392b',
+            fontFamily: 'Inter, system-ui, sans-serif',
+          }}>
+            <div style={{
+              width: 6, height: 6, borderRadius: '50%',
+              background: isConnected ? '#2ecc71' : '#e74c3c',
+              animation: isConnected ? 'pulse 2s infinite' : 'none',
+            }} />
+            {isConnected ? `Live · Room ${roomId}` : 'Reconnecting…'}
+          </div>
+        )}
       </div>
 
       {/* Top Toolbar */}
       <Toolbar activeTool={tool} onChange={setTool} />
 
+      {/* Presence Panel (only in multiplayer mode) */}
+      {multiplayerEnabled && roomId && (
+        <PresencePanel
+          peers={peers}
+          myName={userName}
+          myColor={myColor}
+          isConnected={isConnected}
+          roomId={roomId}
+        />
+      )}
+
       {/* Canvas */}
-      <div className="canvas-container">
+      <div className="canvas-container" style={{ position: 'relative' }}>
         <Canvas
           ref={canvasRef}
           tool={tool}
@@ -164,11 +283,21 @@ export default function App() {
           onHistoryChange={handleHistoryChange}
           onToolChange={setTool}
           onSelectShape={handleSelectShape}
-          onZoomChange={setZoom}
+          onZoomChange={handleZoomChange}
+          onPanChange={handlePanChange}
+          onCursorMove={handleCursorMove}
+          onShapeAdded={multiplayerEnabled ? emitShapeAdded : undefined}
+          onShapeUpdated={multiplayerEnabled ? emitShapeUpdated : undefined}
+          onShapeDeleted={multiplayerEnabled ? emitShapeDeleted : undefined}
         />
+
+        {/* Peer cursors overlay (only in multiplayer) */}
+        {multiplayerEnabled && (
+          <PeerCursors peers={peers} pan={pan} zoom={zoom} />
+        )}
       </div>
 
-      {/* Properties Panel (Dynamic text vs shape panel based on user image) */}
+      {/* Properties Panel */}
       <PropertiesPanel
         activeTool={tool}
         selectedShape={selectedShape}
@@ -204,54 +333,22 @@ export default function App() {
 
       {/* Corner Actions */}
       <div className="corner-actions">
-        <button
-          id="undo-btn"
-          className="action-btn"
-          onClick={handleUndo}
-          disabled={!canUndo}
-          aria-label="Undo (Ctrl+Z)"
-          title="Undo (Ctrl+Z)"
-          style={{ opacity: canUndo ? 1 : 0.35 }}
-        >
+        <button id="undo-btn" className="action-btn" onClick={handleUndo} disabled={!canUndo} aria-label="Undo (Ctrl+Z)" title="Undo (Ctrl+Z)" style={{ opacity: canUndo ? 1 : 0.35 }}>
           <Undo2 size={14} /> <span className="btn-label">Undo</span>
         </button>
-        <button
-          id="redo-btn"
-          className="action-btn"
-          onClick={handleRedo}
-          disabled={!canRedo}
-          aria-label="Redo (Ctrl+Y)"
-          title="Redo (Ctrl+Y)"
-          style={{ opacity: canRedo ? 1 : 0.35 }}
-        >
+        <button id="redo-btn" className="action-btn" onClick={handleRedo} disabled={!canRedo} aria-label="Redo (Ctrl+Y)" title="Redo (Ctrl+Y)" style={{ opacity: canRedo ? 1 : 0.35 }}>
           <Redo2 size={14} /> <span className="btn-label">Redo</span>
         </button>
-        <button
-          id="clear-btn"
-          className="action-btn danger"
-          onClick={handleClear}
-          aria-label="Clear canvas"
-          title="Clear canvas"
-        >
+        <button id="clear-btn" className="action-btn danger" onClick={handleClear} aria-label="Clear canvas" title="Clear canvas">
           <Trash2 size={14} /> <span className="btn-label">Clear</span>
         </button>
-        <button
-          id="download-btn"
-          className="action-btn primary"
-          onClick={handleDownload}
-          aria-label="Download image"
-          title="Export as PNG"
-        >
+        <button id="download-btn" className="action-btn primary" onClick={handleDownload} aria-label="Download image" title="Export as PNG">
           <Download size={14} /> <span className="btn-label">Export</span>
         </button>
       </div>
 
       {/* Toast */}
-      <div
-        role="status"
-        aria-live="polite"
-        className={`toast${toastVisible ? ' visible' : ''}`}
-      >
+      <div role="status" aria-live="polite" className={`toast${toastVisible ? ' visible' : ''}`}>
         {toast}
       </div>
     </div>

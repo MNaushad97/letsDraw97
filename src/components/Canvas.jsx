@@ -605,6 +605,12 @@ const Canvas = forwardRef(function Canvas(
     onToolChange,
     onSelectShape,
     onZoomChange,
+    // ── Multiplayer optional callbacks (no-op when undefined) ──
+    onPanChange,
+    onCursorMove,
+    onShapeAdded,
+    onShapeUpdated,
+    onShapeDeleted,
   }, ref,
 ) {
   const canvasRef = useRef(null);
@@ -838,6 +844,26 @@ const Canvas = forwardRef(function Canvas(
       onHistoryChange?.({ canUndo: true, canRedo: redoStk.current.length > 0 });
     },
     clear() { pushHist(); setShapes([]); setSelId(null); },
+    // Multiplayer: load full shape list (called when joining a room with existing shapes)
+    loadShapes(incoming) {
+      const safe = Array.isArray(incoming) ? incoming : [];
+      hist.current = [];
+      redoStk.current = [];
+      shapesRef.current = safe;
+      setShapes(safe);
+      setSelId(null);
+    },
+    // Multiplayer: merge peer shapes into local canvas without overwriting local undo history
+    mergePeerShapes(peerShapes) {
+      setShapes(prev => {
+        const existingIds = new Set(prev.map(s => s.id));
+        const fresh = peerShapes.filter(s => !existingIds.has(s.id));
+        if (fresh.length === 0) return prev;
+        const merged = [...prev, ...fresh];
+        shapesRef.current = merged;
+        return merged;
+      });
+    },
     changeLayer,
     copy: copySelected,
     cut: cutSelected,
@@ -1126,8 +1152,12 @@ const Canvas = forwardRef(function Canvas(
       const np = { x: px + e.clientX - mx, y: py + e.clientY - my };
       panRef.current = np;
       setPan(np);
+      onPanChange?.(np);
       return;
     }
+
+    // Emit cursor position to multiplayer peers (world coords, throttled externally)
+    onCursorMove?.(pos.x, pos.y);
 
     // Resize / Rotate / Curve selected shape
     if (resizing.current && resizingId.current && resizeHnd.current) {
@@ -1240,6 +1270,7 @@ const Canvas = forwardRef(function Canvas(
         return;
       }
       setShapes(prev => [...prev, shape]);
+      onShapeAdded?.(shape);
       return;
     }
 
@@ -1252,6 +1283,7 @@ const Canvas = forwardRef(function Canvas(
     }
 
     setShapes(prev => [...prev, shape]);
+    onShapeAdded?.(shape);
   }, [onToolChange]);
 
   // ── DOUBLE CLICK → ONLY open text when hitting a shape OR text tool active ──
@@ -1310,9 +1342,11 @@ const Canvas = forwardRef(function Canvas(
       }
       if (e.key === 'Escape') setSelId(null);
       if ((e.key === 'Delete' || e.key === 'Backspace') && selIdRef.current) {
+        const deletedId = selIdRef.current;
         pushHist();
-        setShapes(prev => prev.filter(s => s.id !== selIdRef.current));
+        setShapes(prev => prev.filter(s => s.id !== deletedId));
         setSelId(null);
+        onShapeDeleted?.(deletedId);
       }
     };
     window.addEventListener('keydown', fn);
