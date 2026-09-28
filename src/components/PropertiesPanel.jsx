@@ -208,6 +208,12 @@ export default function PropertiesPanel({
   const currentType = selectedShape?.type || activeTool;
   const isTextMode  = currentType === 'text';
 
+  // Show the selected text shape's actual font size (not the App-level default)
+  // This keeps the display accurate without polluting the "new text" default size.
+  const displayFontSize = (selectedShape?.type === 'text' && selectedShape.fs)
+    ? selectedShape.fs
+    : fontSize;
+
   // Only closed 2D shapes (rectangle, circle, etc) show Fill & Background options
   const showFillOptions =
     !isTextMode &&
@@ -315,28 +321,28 @@ export default function PropertiesPanel({
             <label className="prop-label">Font size</label>
             <div className="btn-group">
               <button
-                className={`prop-btn text-size-btn${fontSize <= 16 ? ' active' : ''}`}
+                className={`prop-btn text-size-btn${displayFontSize <= 16 ? ' active' : ''}`}
                 onClick={() => onFontSizeChange(16)}
                 title="Small (16px)"
               >
                 S
               </button>
               <button
-                className={`prop-btn text-size-btn${fontSize === 22 ? ' active' : ''}`}
+                className={`prop-btn text-size-btn${displayFontSize === 22 ? ' active' : ''}`}
                 onClick={() => onFontSizeChange(22)}
                 title="Medium (22px)"
               >
                 M
               </button>
               <button
-                className={`prop-btn text-size-btn${fontSize === 28 ? ' active' : ''}`}
+                className={`prop-btn text-size-btn${displayFontSize === 28 ? ' active' : ''}`}
                 onClick={() => onFontSizeChange(28)}
                 title="Large (28px)"
               >
                 L
               </button>
               <button
-                className={`prop-btn text-size-btn${fontSize >= 36 ? ' active' : ''}`}
+                className={`prop-btn text-size-btn${displayFontSize >= 36 ? ' active' : ''}`}
                 onClick={() => onFontSizeChange(36)}
                 title="Extra Large (36px)"
               >

@@ -106,7 +106,10 @@ export default function App() {
     if (shape.strokeStyle) setStrokeStyle(shape.strokeStyle);
     if (shape.sloppiness !== undefined) setSloppiness(shape.sloppiness);
     if (shape.fontFamily) setFontFamily(shape.fontFamily);
-    if (shape.fs) setFontSize(shape.fs);
+    // NOTE: We intentionally do NOT sync shape.fs → fontSize state.
+    // Reason: selecting/resizing a text shape would pollute the "default"
+    // font size for NEW text boxes. The PropertiesPanel reads selectedShape.fs
+    // directly for display when a text shape is selected.
     if (shape.textAlign) setTextAlign(shape.textAlign);
     if (shape.opacity !== undefined) setOpacity(shape.opacity);
   }, []);

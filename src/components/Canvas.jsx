@@ -714,6 +714,11 @@ const Canvas = forwardRef(function Canvas(
   const dragOrig       = useRef({ x: 0, y: 0 });
   const resizeHnd      = useRef(null);
   const panStart       = useRef({ mx: 0, my: 0, px: 0, py: 0 });
+  // Text: timer ref so we can cancel single-click text open if dblclick arrives
+  const pendingTextTimer = useRef(null);
+  // Touch: double-tap detection
+  const lastTapTime    = useRef(0);
+  const lastTapPos     = useRef({ x: 0, y: 0 });
 
   const movingId   = useRef(null);
   const resizingId = useRef(null);
@@ -1004,9 +1009,18 @@ const Canvas = forwardRef(function Canvas(
 
     if (ts.shapeId) {
       pushHist();
-      setShapes(prev => prev.map(s => s.id === ts.shapeId ? {
-        ...s, text: ts.value, fs: fsRef.current, fontFamily: fontRef.current, textAlign: alignRef.current,
-      } : s));
+      setShapes(prev => prev.map(s => {
+        if (s.id !== ts.shapeId) return s;
+        return {
+          ...s,
+          text: ts.value,
+          // Preserve the shape's existing font size when editing.
+          // Only override if the user explicitly picked a different size via panel.
+          fs: s.fs || fsRef.current,
+          fontFamily: fontRef.current || s.fontFamily,
+          textAlign: alignRef.current || s.textAlign,
+        };
+      }));
       setSelId(ts.shapeId);
     } else {
       const newId = uid();
@@ -1090,10 +1104,23 @@ const Canvas = forwardRef(function Canvas(
         onToolChange?.('select');
         return;
       }
+      // Don't open if text editor is already open
+      if (textStateRef.current) return;
+
+      // Cancel previous pending timer (in case this is 1st click of a double-click)
+      if (pendingTextTimer.current) {
+        clearTimeout(pendingTextTimer.current);
+        pendingTextTimer.current = null;
+      }
+
       const sp = getScreenPos(e, canvas);
-      setTimeout(() => {
-        openText(sp.x, sp.y, pos.x, pos.y);
-      }, 30);
+      // 250ms delay: dblclick cancels this timer, so we don't open two boxes
+      pendingTextTimer.current = setTimeout(() => {
+        pendingTextTimer.current = null;
+        if (!textStateRef.current) { // still closed after delay
+          openText(sp.x, sp.y, pos.x, pos.y);
+        }
+      }, 250);
       return;
     }
 
@@ -1315,26 +1342,36 @@ const Canvas = forwardRef(function Canvas(
     onShapeAdded?.(shape);
   }, [onToolChange, onShapeUpdated]);
 
-  // ── DOUBLE CLICK → ONLY open text when hitting a shape OR text tool active ──
+  // ── DOUBLE CLICK → open text editor (existing text) or new text box ──
   const onDblClick = useCallback((e) => {
+    // Cancel any pending single-click text open (prevents double text boxes)
+    if (pendingTextTimer.current) {
+      clearTimeout(pendingTextTimer.current);
+      pendingTextTimer.current = null;
+    }
+
     const canvas = canvasRef.current;
     const pan    = panRef.current;
     const zm     = zoomRef.current;
     const pos    = getPos(e, canvas, pan, zm);
-    const sp     = getScreenPos(e, canvas);
     const t      = toolRef.current;
 
     const hit = [...shapesRef.current].reverse().find(s => hitShape(pos.x, pos.y, s));
-    if (hit || t === 'text') {
-      if (textStateRef.current) commitText();
-      if (hit && hit.type === 'text') {
-        openText(sp.x, sp.y, hit.x, hit.y, hit.text, hit.id);
-      } else if (hit) {
-        openText(sp.x, sp.y, pos.x, pos.y, hit.text || '', hit.id);
-      } else {
-        openText(sp.x, sp.y, pos.x, pos.y, '', null);
-      }
+
+    if (textStateRef.current) commitText();
+
+    if (hit && hit.type === 'text') {
+      // Editing existing text: position textarea at the text's actual screen coords
+      const scale   = zm / 100;
+      const textScrX = hit.x * scale + pan.x;
+      const textScrY = hit.y * scale + pan.y;
+      openText(textScrX, textScrY, hit.x, hit.y, hit.text || '', hit.id);
+    } else if (!hit && (t === 'text' || t === 'select')) {
+      // Empty canvas area: open new text box only on text or select tool
+      const sp = getScreenPos(e, canvas);
+      openText(sp.x, sp.y, pos.x, pos.y, '', null);
     }
+    // Non-text shapes: double-click does nothing (no unexpected text boxes)
   }, [commitText, openText]);
 
   // ── KEYBOARD ─────────────────────────────────────────────
@@ -1407,6 +1444,26 @@ const Canvas = forwardRef(function Canvas(
     const handleNativeTouchStart = (e) => {
       if (e.touches && e.touches.length > 1) return;
       if (e.cancelable) e.preventDefault();
+
+      // ── Double-tap detection for touch devices ──────────────────
+      // Browser doesn't always fire 'dblclick' for touch events,
+      // so we manually detect a double-tap (two taps within 300ms & 30px).
+      const now = Date.now();
+      const touch = e.touches[0];
+      const timeSinceLast = now - lastTapTime.current;
+      const dx = touch.clientX - lastTapPos.current.x;
+      const dy = touch.clientY - lastTapPos.current.y;
+      const dist = Math.hypot(dx, dy);
+
+      if (timeSinceLast < 300 && dist < 30) {
+        // It's a double-tap! Trigger text editing and skip normal mousedown.
+        lastTapTime.current = 0; // reset so triple-tap doesn't retrigger
+        onDblClick(e);
+        return;
+      }
+
+      lastTapTime.current = now;
+      lastTapPos.current  = { x: touch.clientX, y: touch.clientY };
       onMouseDown(e);
     };
 
@@ -1432,7 +1489,7 @@ const Canvas = forwardRef(function Canvas(
       canvas.removeEventListener('touchend', handleNativeTouchEnd);
       canvas.removeEventListener('touchcancel', handleNativeTouchEnd);
     };
-  }, [onMouseDown, onMouseMove, onMouseUp]);
+  }, [onMouseDown, onMouseMove, onMouseUp, onDblClick]);
 
   return (
     <>
