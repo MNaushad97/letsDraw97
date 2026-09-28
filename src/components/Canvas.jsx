@@ -663,26 +663,32 @@ const Canvas = forwardRef(function Canvas(
   useEffect(() => { alignRef.current    = textAlign;       }, [textAlign]);
   useEffect(() => { opRef.current       = opacity;         }, [opacity]);
 
-  // Sync prop changes to currently selected shape
+  // Sync prop changes to currently selected shape + broadcast to multiplayer peers
   useEffect(() => {
     if (!selIdRef.current) return;
-    setShapes(prev => prev.map(s => {
-      if (s.id !== selIdRef.current) return s;
-      return {
-        ...s,
-        color,
-        bg: backgroundColor,
-        fillStyle,
-        sz: brushSize,
-        strokeStyle,
-        sloppiness,
-        fontFamily,
-        fs: fontSize,
-        textAlign,
-        opacity,
-      };
-    }));
-  }, [color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity]);
+    setShapes(prev => {
+      const next = prev.map(s => {
+        if (s.id !== selIdRef.current) return s;
+        return {
+          ...s,
+          color,
+          bg: backgroundColor,
+          fillStyle,
+          sz: brushSize,
+          strokeStyle,
+          sloppiness,
+          fontFamily,
+          fs: fontSize,
+          textAlign,
+          opacity,
+        };
+      });
+      // Emit the updated shape to peers (only if something actually changed)
+      const updated = next.find(s => s.id === selIdRef.current);
+      if (updated) onShapeUpdated?.(updated);
+      return next;
+    });
+  }, [color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity, onShapeUpdated]);
 
   // Clear selection when switching away from select tool
   useEffect(() => {
@@ -1237,14 +1243,18 @@ const Canvas = forwardRef(function Canvas(
     mouseDownPos.current = null;
 
     if (resizing.current) {
+      const finalShape = shapesRef.current.find(s => s.id === resizingId.current);
       resizing.current   = false;
       resizingId.current = null;
       resizeHnd.current  = null;
+      if (finalShape) onShapeUpdated?.(finalShape);
       return;
     }
     if (moving.current) {
+      const finalShape = shapesRef.current.find(s => s.id === movingId.current);
       moving.current   = false;
       movingId.current = null;
+      if (finalShape) onShapeUpdated?.(finalShape);
       return;
     }
 
@@ -1284,7 +1294,7 @@ const Canvas = forwardRef(function Canvas(
 
     setShapes(prev => [...prev, shape]);
     onShapeAdded?.(shape);
-  }, [onToolChange]);
+  }, [onToolChange, onShapeUpdated]);
 
   // ── DOUBLE CLICK → ONLY open text when hitting a shape OR text tool active ──
   const onDblClick = useCallback((e) => {
