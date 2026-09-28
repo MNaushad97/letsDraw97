@@ -139,11 +139,31 @@ export default function App() {
   const handleZoomReset = () => setZoom(100);
 
   // ── Multiplayer hook ─────────────────────────────────────────────
+  // ── Direct canvas callbacks for peer events ────────────────────────
+  // Using useCallback + ref so the socket handler always has the latest ref
+  const handlePeerShapeAdded = useCallback((shape) => {
+    canvasRef.current?.mergePeerShapes?.([shape]);
+  }, []);
+
+  const handlePeerShapeUpdated = useCallback((shape) => {
+    canvasRef.current?.updatePeerShape?.(shape);
+  }, []);
+
+  const handlePeerShapeDeleted = useCallback((shapeId) => {
+    canvasRef.current?.deletePeerShape?.(shapeId);
+  }, []);
+
+  const handlePeerCanvasCleared = useCallback(() => {
+    canvasRef.current?.loadShapes?.([]);
+  }, []);
+
+  const handleInitialShapes = useCallback((shapes) => {
+    canvasRef.current?.loadShapes?.(shapes);
+  }, []);
+
   const {
     isConnected,
     peers,
-    initialShapes,
-    peerShapes,
     emitCursorMove,
     emitShapeAdded,
     emitShapeUpdated,
@@ -154,21 +174,12 @@ export default function App() {
     userId,
     userName,
     enabled: multiplayerEnabled,
+    onPeerShapeAdded:    handlePeerShapeAdded,
+    onPeerShapeUpdated:  handlePeerShapeUpdated,
+    onPeerShapeDeleted:  handlePeerShapeDeleted,
+    onPeerCanvasCleared: handlePeerCanvasCleared,
+    onInitialShapes:     handleInitialShapes,
   });
-
-  // When server sends initial shapes (on joining), load them into canvas
-  useEffect(() => {
-    if (initialShapes && initialShapes.length > 0 && canvasRef.current) {
-      canvasRef.current.loadShapes?.(initialShapes);
-    }
-  }, [initialShapes]);
-
-  // When peers add shapes, merge them into canvas
-  useEffect(() => {
-    if (peerShapes.length > 0 && canvasRef.current) {
-      canvasRef.current.mergePeerShapes?.(peerShapes);
-    }
-  }, [peerShapes]);
 
   // Sync pan/zoom for cursor coordinate conversion
   const handlePanChange = useCallback((newPan) => {

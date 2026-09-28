@@ -859,15 +859,34 @@ const Canvas = forwardRef(function Canvas(
       setShapes(safe);
       setSelId(null);
     },
-    // Multiplayer: merge peer shapes into local canvas without overwriting local undo history
-    mergePeerShapes(peerShapes) {
+    // Multiplayer: add brand-new peer shapes
+    mergePeerShapes(incoming) {
       setShapes(prev => {
         const existingIds = new Set(prev.map(s => s.id));
-        const fresh = peerShapes.filter(s => !existingIds.has(s.id));
+        const fresh = (Array.isArray(incoming) ? incoming : []).filter(s => !existingIds.has(s.id));
         if (fresh.length === 0) return prev;
         const merged = [...prev, ...fresh];
         shapesRef.current = merged;
         return merged;
+      });
+    },
+    // Multiplayer: update an existing peer shape (move, resize, recolor, rotate)
+    updatePeerShape(shape) {
+      setShapes(prev => {
+        const exists = prev.some(s => s.id === shape.id);
+        const next = exists
+          ? prev.map(s => s.id === shape.id ? shape : s)
+          : [...prev, shape]; // add it if we don't have it yet
+        shapesRef.current = next;
+        return next;
+      });
+    },
+    // Multiplayer: delete a shape by id from a peer's delete/erase action
+    deletePeerShape(shapeId) {
+      setShapes(prev => {
+        const next = prev.filter(s => s.id !== shapeId);
+        shapesRef.current = next;
+        return next;
       });
     },
     changeLayer,
@@ -1235,7 +1254,7 @@ const Canvas = forwardRef(function Canvas(
 
     // 3. Empty space cursor
     setCursor(t === 'select' ? 'default' : 'crosshair');
-  }, [eraseAtPos]);
+  }, [eraseAtPos, onCursorMove]);
 
   // ── MOUSE UP ─────────────────────────────────────────────
   const onMouseUp = useCallback(() => {

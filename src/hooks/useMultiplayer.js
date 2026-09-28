@@ -1,28 +1,46 @@
 /**
- * useMultiplayer — Isolated Socket.io multiplayer hook for letsDraw97
+ * useMultiplayer — Socket.io multiplayer hook for letsDraw97
  *
- * Zero-regression guarantee:
- *   This hook is ONLY created when a ?room= URL param is present.
- *   When no roomId is provided, this hook returns null-safe defaults
- *   and opens zero network connections.
+ * Architecture: callback-based peer events (not state-based).
+ * Each peer event immediately calls the corresponding canvas ref method,
+ * so shapes update in real-time without going through React state diffing.
+ *
+ * Zero-regression: only active when enabled=true && roomId is set.
  */
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { io } from 'socket.io-client';
 import { getNextPeerColor } from '../lib/randomNames.js';
 
-// ── This points to your Socket.io server ────────────────────────
-// Change to your deployed server URL when going to production.
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4001';
 
-export function useMultiplayer({ roomId, userId, userName, enabled }) {
-  const socketRef = useRef(null);
+export function useMultiplayer({
+  roomId,
+  userId,
+  userName,
+  enabled,
+  // Direct canvas callbacks — called immediately on socket event receipt
+  onPeerShapeAdded,
+  onPeerShapeUpdated,
+  onPeerShapeDeleted,
+  onPeerCanvasCleared,
+  onInitialShapes,
+}) {
+  const socketRef       = useRef(null);
+  const [peers, setPeers]             = useState({});
+  const [isConnected, setIsConnected] = useState(false);
+  const peerColorsRef = useRef({});
 
-  const [peers, setPeers]               = useState({});   // { userId: { name, color, x, y } }
-  const [isConnected, setIsConnected]   = useState(false);
-  const [peerShapes, setPeerShapes]     = useState([]);    // shapes from peers added since join
-  const [initialShapes, setInitialShapes] = useState(null); // shapes loaded from Firebase on join
-
-  const peerColorsRef = useRef({}); // userId -> color
+  // Stable refs so socket handlers always see latest callbacks
+  const cbAdded    = useRef(onPeerShapeAdded);
+  const cbUpdated  = useRef(onPeerShapeUpdated);
+  const cbDeleted  = useRef(onPeerShapeDeleted);
+  const cbCleared  = useRef(onPeerCanvasCleared);
+  const cbInitial  = useRef(onInitialShapes);
+  useEffect(() => { cbAdded.current   = onPeerShapeAdded;   }, [onPeerShapeAdded]);
+  useEffect(() => { cbUpdated.current = onPeerShapeUpdated; }, [onPeerShapeUpdated]);
+  useEffect(() => { cbDeleted.current = onPeerShapeDeleted; }, [onPeerShapeDeleted]);
+  useEffect(() => { cbCleared.current = onPeerCanvasCleared;}, [onPeerCanvasCleared]);
+  useEffect(() => { cbInitial.current = onInitialShapes;    }, [onInitialShapes]);
 
   const getPeerColor = useCallback((id) => {
     if (!peerColorsRef.current[id]) {
@@ -48,19 +66,26 @@ export function useMultiplayer({ roomId, userId, userName, enabled }) {
 
     socket.on('disconnect', () => setIsConnected(false));
 
-    // ── Receive initial state when joining ───────────────────────
+    // ── Room init: load existing shapes + existing peers ──────────
     socket.on('room-init', ({ shapes, peers: existingPeers }) => {
-      setInitialShapes(shapes || []);
+      // Load saved shapes into canvas
+      if (shapes && shapes.length > 0) {
+        cbInitial.current?.(shapes);
+      }
+      // Populate peers map
       const coloredPeers = {};
       Object.entries(existingPeers || {}).forEach(([id, peer]) => {
-        coloredPeers[id] = { ...peer, color: getPeerColor(id) };
+        coloredPeers[id] = { ...peer, color: getPeerColor(id), x: -9999, y: -9999 };
       });
       setPeers(coloredPeers);
     });
 
-    // ── Peer joins / leaves ──────────────────────────────────────
+    // ── Peer joins / leaves ───────────────────────────────────────
     socket.on('peer-joined', ({ userId: id, name }) => {
-      setPeers(prev => ({ ...prev, [id]: { name, color: getPeerColor(id), x: -9999, y: -9999 } }));
+      setPeers(prev => ({
+        ...prev,
+        [id]: { name, color: getPeerColor(id), x: -9999, y: -9999 },
+      }));
     });
 
     socket.on('peer-left', ({ userId: id }) => {
@@ -71,30 +96,19 @@ export function useMultiplayer({ roomId, userId, userName, enabled }) {
       });
     });
 
-    // ── Live cursor positions ────────────────────────────────────
+    // ── Live cursor ───────────────────────────────────────────────
     socket.on('peer-cursor-move', ({ userId: id, name, x, y }) => {
       setPeers(prev => ({
         ...prev,
-        [id]: { ...prev[id], name, color: getPeerColor(id), x, y },
+        [id]: { ...(prev[id] || {}), name, color: getPeerColor(id), x, y },
       }));
     });
 
-    // ── Real-time shape events ───────────────────────────────────
-    socket.on('peer-shape-added', ({ shape }) => {
-      setPeerShapes(prev => [...prev, shape]);
-    });
-
-    socket.on('peer-shape-updated', ({ shape }) => {
-      setPeerShapes(prev => prev.map(s => s.id === shape.id ? shape : s));
-    });
-
-    socket.on('peer-shape-deleted', ({ shapeId }) => {
-      setPeerShapes(prev => prev.filter(s => s.id !== shapeId));
-    });
-
-    socket.on('peer-canvas-cleared', () => {
-      setPeerShapes([]);
-    });
+    // ── Shape events: call canvas ref directly ────────────────────
+    socket.on('peer-shape-added',   ({ shape })   => cbAdded.current?.(shape));
+    socket.on('peer-shape-updated', ({ shape })   => cbUpdated.current?.(shape));
+    socket.on('peer-shape-deleted', ({ shapeId }) => cbDeleted.current?.(shapeId));
+    socket.on('peer-canvas-cleared', ()           => cbCleared.current?.());
 
     return () => {
       socket.disconnect();
@@ -105,43 +119,26 @@ export function useMultiplayer({ roomId, userId, userName, enabled }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, roomId, userId, userName]);
 
-  // ── Outgoing emitters (throttled cursor, shape events) ─────────
+  // ── Outgoing emitters ─────────────────────────────────────────
   const cursorThrottle = useRef(null);
 
   const emitCursorMove = useCallback((x, y) => {
     if (!socketRef.current || !roomId) return;
-    if (cursorThrottle.current) return; // throttle to ~60fps
+    if (cursorThrottle.current) return;
     cursorThrottle.current = setTimeout(() => {
       cursorThrottle.current = null;
       socketRef.current?.emit('cursor-move', { roomId, userId, name: userName, x, y });
     }, 16);
   }, [roomId, userId, userName]);
 
-  const emitShapeAdded = useCallback((shape) => {
-    if (!socketRef.current || !roomId) return;
-    socketRef.current.emit('shape-added', { roomId, shape });
-  }, [roomId]);
-
-  const emitShapeUpdated = useCallback((shape) => {
-    if (!socketRef.current || !roomId) return;
-    socketRef.current.emit('shape-updated', { roomId, shape });
-  }, [roomId]);
-
-  const emitShapeDeleted = useCallback((shapeId) => {
-    if (!socketRef.current || !roomId) return;
-    socketRef.current.emit('shape-deleted', { roomId, shapeId });
-  }, [roomId]);
-
-  const emitCanvasCleared = useCallback(() => {
-    if (!socketRef.current || !roomId) return;
-    socketRef.current.emit('canvas-cleared', { roomId });
-  }, [roomId]);
+  const emitShapeAdded   = useCallback((shape)   => socketRef.current?.emit('shape-added',   { roomId, shape }),   [roomId]);
+  const emitShapeUpdated = useCallback((shape)   => socketRef.current?.emit('shape-updated', { roomId, shape }),   [roomId]);
+  const emitShapeDeleted = useCallback((shapeId) => socketRef.current?.emit('shape-deleted', { roomId, shapeId }), [roomId]);
+  const emitCanvasCleared = useCallback(()       => socketRef.current?.emit('canvas-cleared', { roomId }),         [roomId]);
 
   return {
     isConnected,
     peers,
-    initialShapes,
-    peerShapes,
     emitCursorMove,
     emitShapeAdded,
     emitShapeUpdated,
