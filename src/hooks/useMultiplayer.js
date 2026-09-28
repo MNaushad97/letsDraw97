@@ -13,6 +13,45 @@ import { getNextPeerColor } from '../lib/randomNames.js';
 
 const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4001';
 
+/**
+ * checkRoom — One-shot socket connection to verify if a room exists on the server.
+ * Resolves to { exists: boolean }.
+ * Used before entering a room from the Join flow or URL param detection.
+ */
+export function checkRoom(roomId) {
+  return new Promise((resolve) => {
+    if (!roomId) { resolve({ exists: false }); return; }
+
+    const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || 'http://localhost:4001';
+    const tempSocket = io(SOCKET_URL, {
+      transports: ['websocket', 'polling'],
+      reconnectionAttempts: 2,
+    });
+
+    const timeout = setTimeout(() => {
+      tempSocket.disconnect();
+      // If server unreachable, fail open (let user in — connectivity issue)
+      resolve({ exists: true, offline: true });
+    }, 5000);
+
+    tempSocket.on('connect', () => {
+      tempSocket.emit('check-room', { roomId });
+    });
+
+    tempSocket.on('room-check-result', ({ exists }) => {
+      clearTimeout(timeout);
+      tempSocket.disconnect();
+      resolve({ exists });
+    });
+
+    tempSocket.on('connect_error', () => {
+      clearTimeout(timeout);
+      tempSocket.disconnect();
+      resolve({ exists: true, offline: true }); // fail open
+    });
+  });
+}
+
 export function useMultiplayer({
   roomId,
   userId,

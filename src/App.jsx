@@ -9,7 +9,7 @@ import PropertiesPanel from './components/PropertiesPanel.jsx';
 import RoomLobby from './components/RoomLobby.jsx';
 import PeerCursors from './components/PeerCursors.jsx';
 import PresencePanel from './components/PresencePanel.jsx';
-import { useMultiplayer } from './hooks/useMultiplayer.js';
+import { useMultiplayer, checkRoom } from './hooks/useMultiplayer.js';
 import { generateRandomName, getNextPeerColor } from './lib/randomNames.js';
 import './index.css';
 
@@ -37,11 +37,39 @@ export default function App() {
   const userId    = useMemo(() => getOrCreateUserId(), []);
   const myColor   = useMemo(() => getNextPeerColor(), []);
 
-  // Show lobby only if there is NO ?room= param in the URL
-  const [showLobby, setShowLobby]       = useState(!urlRoomId);
-  const [roomId, setRoomId]             = useState(urlRoomId || null);
+  // Lobby: shown on first load. If ?room= is in URL, validate it first before skipping lobby.
+  const [showLobby, setShowLobby]       = useState(true); // always show until validated
+  const [lobbyError, setLobbyError]     = useState('');
+  const [roomId, setRoomId]             = useState(null);
   const [userName, setUserName]         = useState(() => generateRandomName());
-  const [multiplayerEnabled, setMultiplayerEnabled] = useState(!!urlRoomId);
+  const [multiplayerEnabled, setMultiplayerEnabled] = useState(false);
+
+  // On mount: if ?room= param exists, validate it then auto-join or show error in lobby
+  useEffect(() => {
+    if (!urlRoomId) {
+      // No room param — just show the lobby normally
+      setShowLobby(true);
+      return;
+    }
+
+    // Validate the room from URL param before entering
+    checkRoom(urlRoomId).then(({ exists, offline }) => {
+      if (exists || offline) {
+        // Valid room — skip the lobby and enter directly
+        setRoomId(urlRoomId);
+        setMultiplayerEnabled(true);
+        setShowLobby(false);
+      } else {
+        // Room doesn't exist — show lobby with error, clear invalid ?room= from URL
+        const cleanUrl = new URL(window.location.href);
+        cleanUrl.searchParams.delete('room');
+        window.history.replaceState({}, '', cleanUrl.toString());
+        setLobbyError(`Room "${urlRoomId}" doesn't exist or has expired. Please create a new room or ask for a fresh invite link.`);
+        setShowLobby(true);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // Current pan/zoom for cursor coordinate conversion
   const [pan, setPanState]              = useState({ x: 0, y: 0 });
   const [zoom, setZoom]                 = useState(100);
@@ -218,7 +246,7 @@ export default function App() {
     <div className="app">
       {/* Room Lobby (only shown when no ?room= and user hasn't chosen yet) */}
       {showLobby && (
-        <RoomLobby onJoin={handleJoinRoom} onSolo={handleSolo} />
+        <RoomLobby onJoin={handleJoinRoom} onSolo={handleSolo} prefillError={lobbyError} />
       )}
 
       {/* Dot-grid background */}

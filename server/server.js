@@ -94,6 +94,35 @@ io.on('connection', (socket) => {
   let currentRoomId = null;
   let currentUserId = null;
 
+  // ── CHECK IF ROOM EXISTS (before joining) ──────────────────────
+  socket.on('check-room', async ({ roomId }) => {
+    if (!roomId) {
+      socket.emit('room-check-result', { exists: false });
+      return;
+    }
+
+    // 1. Active in memory?
+    const activeRoom = rooms[roomId];
+    if (activeRoom && Object.keys(activeRoom.peers).length > 0) {
+      socket.emit('room-check-result', { exists: true });
+      return;
+    }
+
+    // 2. Persisted in Firebase?
+    if (db) {
+      try {
+        const snap = await db.ref(`rooms/${roomId}/createdAt`).once('value');
+        socket.emit('room-check-result', { exists: snap.exists() });
+        return;
+      } catch (e) {
+        console.error('check-room DB error:', e.message);
+      }
+    }
+
+    // No DB configured: allow join only if room is active in memory
+    socket.emit('room-check-result', { exists: !!activeRoom });
+  });
+
   // ── JOIN ROOM ──────────────────────────────────────────────────
   socket.on('join-room', async ({ roomId, userId, name }) => {
     if (!roomId || !userId) return;
@@ -107,6 +136,14 @@ io.on('connection', (socket) => {
     // Load from Firebase if room is fresh (no in-memory state yet)
     if (room.shapes.length === 0 && db) {
       room.shapes = await loadShapesFromDB(roomId);
+    }
+
+    // Mark room as created in Firebase (idempotent — only writes if not set)
+    if (db) {
+      db.ref(`rooms/${roomId}/createdAt`).transaction(current => {
+        if (current === null) return Date.now(); // Only set if not already set
+        return; // Abort transaction — already set
+      }).catch(e => console.error('createdAt write error:', e.message));
     }
 
     // Register peer
