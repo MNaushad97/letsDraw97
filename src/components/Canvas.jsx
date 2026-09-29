@@ -974,9 +974,6 @@ const Canvas = forwardRef(function Canvas(
     },
   }), [pushHist, onHistoryChange, changeLayer, copySelected, cutSelected, pasteSelected, duplicateSelected]);
 
-  // ── Redraw on state change ───────────────────────────────
-  useEffect(() => { redrawAll(canvasRef.current, shapes, selId, pan, zoom, textState?.shapeId); }, [shapes, selId, pan, zoom, textState]);
-
   // ── Canvas resize ────────────────────────────────────────
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -1043,6 +1040,9 @@ const Canvas = forwardRef(function Canvas(
   const textRef      = useRef(null);
   const textStateRef = useRef(null);
   useEffect(() => { textStateRef.current = textState; }, [textState]);
+
+  // ── Redraw on state change (placed here so textState is in scope) ──
+  useEffect(() => { redrawAll(canvasRef.current, shapes, selId, pan, zoom, textState?.shapeId); }, [shapes, selId, pan, zoom, textState]);
 
   const openText = useCallback((worldX, worldY, initialVal = '', shapeId = null, existingShape = null) => {
     setTextState({
