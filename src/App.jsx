@@ -101,8 +101,8 @@ export default function App() {
     setSelectedShape(shape);
     if (!shape) return;
     if (shape.color) setColor(shape.color);
-    if (shape.bg) setBackgroundColor(shape.bg);
-    if (shape.fillStyle) setFillStyle(shape.fillStyle);
+    setBackgroundColor(shape.bg || 'transparent');
+    setFillStyle(shape.fillStyle || 'hachure');
     if (shape.sz) setBrushSize(shape.sz);
     if (shape.strokeStyle) setStrokeStyle(shape.strokeStyle);
     if (shape.sloppiness !== undefined) setSloppiness(shape.sloppiness);
@@ -364,7 +364,10 @@ export default function App() {
           onPanChange={handlePanChange}
           onCursorMove={handleCursorMove}
           onShapeAdded={multiplayerEnabled ? emitShapeAdded : undefined}
-          onShapeUpdated={multiplayerEnabled ? emitShapeUpdated : undefined}
+          onShapeUpdated={useCallback((shape) => {
+            setSelectedShape(prev => (prev?.id === shape?.id ? { ...prev, ...shape } : prev));
+            if (multiplayerEnabled) emitShapeUpdated(shape);
+          }, [multiplayerEnabled, emitShapeUpdated])}
           onShapeDeleted={multiplayerEnabled ? emitShapeDeleted : undefined}
           onShapesReordered={multiplayerEnabled ? emitShapesReordered : undefined}
           onCanvasSync={multiplayerEnabled ? emitCanvasFullSync : undefined}
