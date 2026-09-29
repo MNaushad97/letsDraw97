@@ -96,15 +96,6 @@ export default function App() {
   const [canRedo, setCanRedo] = useState(false);
   const [copiedRoom, setCopiedRoom] = useState(false);
 
-  const handleCopyRoomId = useCallback(() => {
-    if (!roomId) return;
-    navigator.clipboard.writeText(roomId).then(() => {
-      setCopiedRoom(true);
-      showToast(`📋 Room ID "${roomId}" copied!`);
-      setTimeout(() => setCopiedRoom(false), 2000);
-    });
-  }, [roomId, showToast]);
-
   // ── Selected Shape sync ──────────────────────────────────────────
   const handleSelectShape = useCallback((shape) => {
     setSelectedShape(shape);
@@ -151,6 +142,15 @@ export default function App() {
     setCanUndo(u);
     setCanRedo(r);
   }, []);
+
+  const handleCopyRoomId = useCallback(() => {
+    if (!roomId) return;
+    navigator.clipboard.writeText(roomId).then(() => {
+      setCopiedRoom(true);
+      showToast(`📋 Room ID "${roomId}" copied!`);
+      setTimeout(() => setCopiedRoom(false), 2000);
+    });
+  }, [roomId, showToast]);
 
   // ── Keyboard shortcuts ───────────────────────────────────────────
   useEffect(() => {
