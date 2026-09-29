@@ -679,15 +679,15 @@ const Canvas = forwardRef(function Canvas(
 
   useEffect(() => {
     // If the selected shape changed (or deselected), take snapshot and don't apply edits
-    if (selIdRef.current !== lastSelIdRef.current) {
-      lastSelIdRef.current = selIdRef.current;
+    if (selId !== lastSelIdRef.current) {
+      lastSelIdRef.current = selId;
       prevPropsRef.current = {
         color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity
       };
       return;
     }
 
-    if (!selIdRef.current) return;
+    if (!selId) return;
 
     const prevP = prevPropsRef.current;
     const changed = {};
@@ -719,7 +719,7 @@ const Canvas = forwardRef(function Canvas(
       if (updated) onShapeUpdated?.(updated);
       return next;
     });
-  }, [color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity, onShapeUpdated]);
+  }, [selId, color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity, onShapeUpdated]);
 
   // Clear selection when switching away from select tool
   useEffect(() => {
