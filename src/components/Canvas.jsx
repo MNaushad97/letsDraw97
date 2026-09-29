@@ -647,6 +647,7 @@ const Canvas = forwardRef(function Canvas(
   useEffect(() => { shapesRef.current = shapes; }, [shapes]);
   useEffect(() => {
     selIdRef.current  = selId;
+    selChangedRef.current = true; // mark that selection just changed
     if (selId) {
       const selected = shapesRef.current.find(s => s.id === selId);
       if (selected) onSelectShape?.(selected);
@@ -675,13 +676,18 @@ const Canvas = forwardRef(function Canvas(
   const prevPropsRef = useRef({
     color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity
   });
-  const lastSelIdRef = useRef(null);
+  const lastSelIdRef  = useRef(null);
+  // Flag: set when selection changes, so the next prop-sync cycle treats
+  // incoming prop values as the selected shape's existing values (no-op).
+  const selChangedRef = useRef(false);
 
   useEffect(() => {
-    // If the selected shape changed (or deselected), take snapshot and don't apply edits
-    if (selIdRef.current !== lastSelIdRef.current) {
-      lastSelIdRef.current = selIdRef.current;
-      prevPropsRef.current = {
+    // If selection just changed (or deselected), absorb these incoming prop values
+    // as the baseline — they reflect the shape's existing properties, not user edits.
+    if (selChangedRef.current) {
+      selChangedRef.current = false;
+      lastSelIdRef.current  = selIdRef.current;
+      prevPropsRef.current  = {
         color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity
       };
       return;
