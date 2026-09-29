@@ -842,6 +842,10 @@ const Canvas = forwardRef(function Canvas(
   }, [pushHist, onShapesReordered]);
 
   // ── Object/Segment Eraser Action ────────────────────────
+  // Also tracks which shape IDs were removed or split for multiplayer sync.
+  const erasedIdsRef   = useRef(new Set()); // IDs fully removed this stroke
+  const erasedSplitRef = useRef([]);         // new split segments added this stroke
+
   const eraseAtPos = useCallback((pos) => {
     const er = Math.max(szRef.current * 3, 10);
     let changed = false;
@@ -852,6 +856,8 @@ const Canvas = forwardRef(function Canvas(
         if (shouldEraseShape(s, pos, er)) {
           changed = true;
           const split = eraseBrushStroke(s, pos, er);
+          erasedIdsRef.current.add(s.id);
+          erasedSplitRef.current.push(...split);
           newShapes.push(...split);
         } else {
           newShapes.push(s);
@@ -859,6 +865,7 @@ const Canvas = forwardRef(function Canvas(
       } else {
         if (shouldEraseShape(s, pos, er)) {
           changed = true;
+          erasedIdsRef.current.add(s.id);
         } else {
           newShapes.push(s);
         }
@@ -870,6 +877,17 @@ const Canvas = forwardRef(function Canvas(
       setShapes(newShapes);
     }
   }, []);
+
+  // Call on mouseUp after an erase stroke to flush multiplayer events
+  const flushEraseSync = useCallback(() => {
+    // Emit deleted shape IDs
+    erasedIdsRef.current.forEach(id => onShapeDeleted?.(id));
+    // Emit any new split segments as added shapes
+    erasedSplitRef.current.forEach(s => onShapeAdded?.(s));
+    // Reset accumulators
+    erasedIdsRef.current = new Set();
+    erasedSplitRef.current = [];
+  }, [onShapeAdded, onShapeDeleted]);
 
   // ── Expose API ────────────────────────────────────────────
   useImperativeHandle(ref, () => ({
@@ -1195,6 +1213,9 @@ const Canvas = forwardRef(function Canvas(
 
     // ── ERASER TOOL ──────────────────────────────────────────
     if (t === 'eraser') {
+      // Reset erase sync accumulators for this new stroke
+      erasedIdsRef.current   = new Set();
+      erasedSplitRef.current = [];
       pushHist();
       drawing.current = true;
       eraseAtPos(pos);
@@ -1379,7 +1400,11 @@ const Canvas = forwardRef(function Canvas(
     if (!wasDrawing) return;
 
     const t = toolRef.current;
-    if (t === 'eraser') return;
+    if (t === 'eraser') {
+      // Sync erased/split shapes to multiplayer peers
+      flushEraseSync();
+      return;
+    }
 
     const shape = curShape.current;
     curShape.current = null;
@@ -1409,7 +1434,7 @@ const Canvas = forwardRef(function Canvas(
 
     setShapes(prev => [...prev, shape]);
     onShapeAdded?.(shape);
-  }, [onToolChange, onShapeUpdated]);
+  }, [onToolChange, onShapeAdded, onShapeUpdated, flushEraseSync]);
 
   // ── DOUBLE CLICK → edit text (like Excalidraw) ──
   // Works with both the text tool AND the select tool (double-click a text shape)
