@@ -13,20 +13,42 @@ export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId 
   // If a room id came from URL param, drop straight into 'join' mode with it pre-filled
   const [mode, setMode]           = useState(prefillRoomId ? 'join' : null); // null | 'create' | 'join'
   const [roomInput, setRoomInput] = useState(prefillRoomId || '');
-  const [nameInput, setNameInput] = useState(() => generateRandomName());
+  const [nameInput, setNameInput] = useState('');
   const [error, setError]         = useState(prefillError || '');
   const [loading, setLoading]     = useState(false);
 
   const handleCreate = () => {
-    const name   = nameInput.trim() || generateRandomName();
+    const name = nameInput.trim();
+    if (!name) {
+      setError('Please enter your name or click "Generate Alias" first.');
+      return;
+    }
+    setError('');
+    const roomId = generateRoomId();
+    onJoin({ roomId, userName: name, isNewRoom: true });
+  };
+
+  const handleStartCreate = () => {
+    const name = nameInput.trim();
+    if (!name) {
+      setError('Please enter your name or click "Generate Alias" first.');
+      return;
+    }
+    setError('');
     const roomId = generateRoomId();
     onJoin({ roomId, userName: name, isNewRoom: true });
   };
 
   const handleJoin = async () => {
+    const name = nameInput.trim();
+    if (!name) {
+      setError('Please enter your name or click "Generate Alias" first.');
+      return;
+    }
+
     // If prefillRoomId is set, the room was already validated by App.jsx — skip re-check
     if (prefillRoomId) {
-      const name = nameInput.trim() || generateRandomName();
+      setError('');
       onJoin({ roomId: prefillRoomId, userName: name, isNewRoom: false });
       return;
     }
@@ -51,7 +73,6 @@ export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId 
       setError('');
     }
 
-    const name = nameInput.trim() || generateRandomName();
     onJoin({ roomId, userName: name, isNewRoom: false });
   };
 
@@ -92,17 +113,30 @@ export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId 
           <div style={{ display: 'flex', gap: 8 }}>
             <input
               value={nameInput}
-              onChange={e => setNameInput(e.target.value)}
+              onChange={e => { setNameInput(e.target.value); setError(''); }}
               placeholder="Enter your name..."
               maxLength={32}
-              style={inputStyle}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  if (!mode) handleStartCreate();
+                  else if (mode === 'create') handleCreate();
+                  else if (mode === 'join') handleJoin();
+                }
+              }}
+              style={{
+                ...inputStyle,
+                borderColor: (error && !nameInput.trim()) ? '#e74c3c' : 'var(--border, #ddd)',
+              }}
             />
             <button
-              onClick={() => setNameInput(generateRandomName())}
-              title="Random name"
-              style={shuffleBtnStyle}
+              type="button"
+              className="alias-btn"
+              onClick={() => { setNameInput(generateRandomName()); setError(''); }}
+              title="Generate a random alias"
+              style={aliasBtnStyle}
             >
-              <Shuffle size={15} />
+              <Shuffle size={14} />
+              <span>Generate Alias</span>
             </button>
           </div>
         </div>
@@ -113,10 +147,10 @@ export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId 
             {error && (
               <div style={errorBoxStyle}>{error}</div>
             )}
-            <button onClick={() => setMode('create')} style={primaryBtnStyle('#6c63ff')}>
+            <button onClick={handleStartCreate} style={primaryBtnStyle('#6c63ff')}>
               <Users size={16} /> Create a New Room
             </button>
-            <button onClick={() => setMode('join')} style={primaryBtnStyle('#1abc9c')}>
+            <button onClick={() => { setMode('join'); setError(''); }} style={primaryBtnStyle('#1abc9c')}>
               <LogIn size={16} /> Join Existing Room
             </button>
             <div style={dividerStyle}>
@@ -133,6 +167,7 @@ export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId 
         {/* Create Room */}
         {mode === 'create' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {error && <div style={errorBoxStyle}>{error}</div>}
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #888)', textAlign: 'center' }}>
               A unique Room ID will be generated.<br />Share the invite link with teammates!
             </p>
@@ -162,7 +197,7 @@ export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId 
                 style={{ ...inputStyle, borderColor: error ? '#e74c3c' : 'var(--border, #ddd)' }}
               />
             )}
-            {error && <p style={{ margin: 0, fontSize: 12, color: '#e74c3c' }}>{error}</p>}
+            {error && <div style={errorBoxStyle}>{error}</div>}
             <button
               onClick={handleJoin}
               disabled={loading}
@@ -180,7 +215,16 @@ export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId 
         )}
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .alias-btn:hover {
+          background: var(--border, #e2e2dc) !important;
+          border-color: #bbb !important;
+        }
+        .alias-btn:active {
+          transform: scale(0.97);
+        }
+      `}</style>
     </div>
   );
 }
@@ -202,12 +246,16 @@ const inputStyle = {
   boxSizing: 'border-box',
 };
 
-const shuffleBtnStyle = {
-  padding: '10px 12px', borderRadius: 10,
+const aliasBtnStyle = {
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+  padding: '10px 14px', borderRadius: 10,
   border: '1.5px solid var(--border, #ddd)',
   background: 'var(--panel-hover, #f5f5f0)',
-  cursor: 'pointer', color: 'var(--text-secondary, #888)',
-  display: 'flex', alignItems: 'center', flexShrink: 0,
+  cursor: 'pointer', color: 'var(--text-primary, #1e1e1e)',
+  fontSize: 13, fontWeight: 600,
+  whiteSpace: 'nowrap', flexShrink: 0,
+  transition: 'all 0.15s ease',
+  fontFamily: 'Inter, system-ui, sans-serif',
 };
 
 const primaryBtnStyle = (bg) => ({
