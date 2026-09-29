@@ -373,7 +373,9 @@ function getRoughOptions(s) {
     opts.strokeLineDash = strokeDash;
   }
 
-  if (s.bg && s.bg !== 'transparent') {
+  // Lines, arrows, and brush strokes are open paths — never fill them
+  const NO_FILL_TYPES = ['line', 'arrow', 'brush'];
+  if (s.bg && s.bg !== 'transparent' && !NO_FILL_TYPES.includes(s.type)) {
     opts.fill = s.bg;
     opts.fillStyle = s.fillStyle || 'hachure';
     opts.fillWeight = Math.max(1, (s.sz || 2) / 2);
@@ -1044,13 +1046,16 @@ const Canvas = forwardRef(function Canvas(
   // ── Redraw on state change (placed here so textState is in scope) ──
   useEffect(() => { redrawAll(canvasRef.current, shapes, selId, pan, zoom, textState?.shapeId); }, [shapes, selId, pan, zoom, textState]);
 
+  // Whether the textarea is intentionally being committed (to suppress blur race)
+  const committingRef = useRef(false);
+
   const openText = useCallback((worldX, worldY, initialVal = '', shapeId = null, existingShape = null) => {
+    committingRef.current = false;
     setTextState({
       shapeId,
       worldX,
       worldY,
       value: initialVal,
-      // Capture current rendering properties at open time
       fs: existingShape?.fs ?? fsRef.current ?? 22,
       color: existingShape?.color ?? colorRef.current,
       fontFamily: existingShape?.fontFamily ?? fontRef.current ?? 'hand',
@@ -1060,26 +1065,25 @@ const Canvas = forwardRef(function Canvas(
   }, []);
 
   const commitText = useCallback(() => {
+    if (committingRef.current) return;
+    committingRef.current = true;
+
     const ts = textStateRef.current;
     setTextState(null);
+
     if (!ts || !ts.value.trim()) {
       onToolChange?.('select');
+      committingRef.current = false;
       return;
     }
 
     pushHist();
 
     if (ts.shapeId) {
-      // Editing an existing text shape — update it in place
       setShapes(prev => {
         const next = prev.map(s => {
           if (s.id !== ts.shapeId) return s;
-          return {
-            ...s,
-            text: ts.value,
-            // Preserve existing fs/fontFamily/textAlign — don't override with refs
-            // (those only apply to *new* shapes)
-          };
+          return { ...s, text: ts.value };
         });
         const finalShape = next.find(s => s.id === ts.shapeId);
         if (finalShape) onShapeUpdated?.(finalShape);
@@ -1087,7 +1091,6 @@ const Canvas = forwardRef(function Canvas(
       });
       setSelId(ts.shapeId);
     } else {
-      // Brand new text shape
       const newId = uid();
       const shape = {
         id: newId,
@@ -1107,15 +1110,26 @@ const Canvas = forwardRef(function Canvas(
       setSelId(newId);
       onShapeAdded?.(shape);
     }
+
     onToolChange?.('select');
+    // Reset after a tick so re-opened text sessions aren't blocked
+    setTimeout(() => { committingRef.current = false; }, 50);
   }, [pushHist, onToolChange, onShapeAdded, onShapeUpdated]);
 
-  // Auto-focus when text editor opens, cursor to end
+  // Auto-focus when text editor opens; move cursor to end
   useEffect(() => {
     if (textState && textRef.current) {
       const el = textRef.current;
-      el.focus();
-      el.selectionStart = el.selectionEnd = el.value.length;
+      // Use a microtask so the textarea is mounted before we focus
+      requestAnimationFrame(() => {
+        el.focus({ preventScroll: true });
+        el.selectionStart = el.selectionEnd = el.value.length;
+        // Fit to content on open
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
+        el.style.width  = 'auto';
+        el.style.width  = Math.max(el.scrollWidth + 20, 120) + 'px';
+      });
     }
   }, [textState]);
 
@@ -1131,10 +1145,12 @@ const Canvas = forwardRef(function Canvas(
     mouseDownPos.current = pos;
     hasDragged.current   = false;
 
-    // IF A TEXT AREA IS ALREADY OPEN: CLICKING OUTSIDE COMMITS TEXT AND STOPS!
+    // If text editor is open and user clicks the CANVAS (not the textarea itself),
+    // commit and proceed with the new action. This is safe because textarea's own
+    // onMouseDown does stopPropagation so clicks inside it never reach here.
     if (textStateRef.current) {
       commitText();
-      return;
+      // Don't return — allow the click to also start the new action
     }
 
     if (t === 'hand') {
@@ -1161,21 +1177,19 @@ const Canvas = forwardRef(function Canvas(
 
     // ── TEXT TOOL ─────────────────────────────────────────────
     if (t === 'text') {
-      if (textStateRef.current) {
-        commitText();
-        return;
+      // Find if user clicked on an existing text shape
+      const hitTxt = [...shapesRef.current].reverse().find(s => s.type === 'text' && hitShape(pos.x, pos.y, s));
+      if (hitTxt) {
+        // Edit existing text
+        openText(hitTxt.x, hitTxt.y, hitTxt.text || '', hitTxt.id, hitTxt);
+      } else {
+        // Create new text at click position
+        if (selIdRef.current) {
+          setSelId(null);
+          selIdRef.current = null;
+        }
+        openText(pos.x, pos.y, '', null);
       }
-      // If clicked directly on an existing text shape, edit it directly!
-      const hit = [...shapesRef.current].reverse().find(s => hitShape(pos.x, pos.y, s));
-      if (hit && hit.type === 'text') {
-        openText(hit.x, hit.y, hit.text || '', hit.id, hit);
-        return;
-      }
-      if (selIdRef.current) {
-        setSelId(null);
-        selIdRef.current = null;
-      }
-      openText(pos.x, pos.y, '', null);
       return;
     }
 
@@ -1397,7 +1411,8 @@ const Canvas = forwardRef(function Canvas(
     onShapeAdded?.(shape);
   }, [onToolChange, onShapeUpdated]);
 
-  // ── DOUBLE CLICK → edit existing text directly ──
+  // ── DOUBLE CLICK → edit text (like Excalidraw) ──
+  // Works with both the text tool AND the select tool (double-click a text shape)
   const onDblClick = useCallback((e) => {
     const canvas = canvasRef.current;
     const pan    = panRef.current;
@@ -1405,17 +1420,20 @@ const Canvas = forwardRef(function Canvas(
     const pos    = getPos(e, canvas, pan, zm);
     const t      = toolRef.current;
 
+    // If editor is already open, commit it first
     if (textStateRef.current) commitText();
 
     const hit = [...shapesRef.current].reverse().find(s => hitShape(pos.x, pos.y, s));
 
     if (hit && hit.type === 'text') {
-      // Edit existing text shape directly
+      // Double-click on existing text → edit it
       openText(hit.x, hit.y, hit.text || '', hit.id, hit);
-    } else if (!hit && t === 'text') {
-      // On empty area with text tool, open new text box
+    } else if (!hit) {
+      // Double-click on empty canvas → open new text box
+      // (works on any tool, like Excalidraw)
       openText(pos.x, pos.y, '', null);
     }
+    // Double-click on a non-text shape: do nothing
   }, [commitText, openText]);
 
   // ── KEYBOARD ─────────────────────────────────────────────
@@ -1548,10 +1566,11 @@ const Canvas = forwardRef(function Canvas(
       />
 
       {textState && (() => {
-        const scale   = zoom / 100;
-        const left    = textState.worldX * scale + pan.x;
-        const top     = textState.worldY * scale + pan.y;
-        const fsPx    = Math.max((textState.fs || 22) * scale, 12);
+        const scale     = zoom / 100;
+        const left      = textState.worldX * scale + pan.x;
+        const top       = textState.worldY * scale + pan.y;
+        const fsPx      = Math.max((textState.fs || 22) * scale, 12);
+        const lineH     = fsPx * 1.35;
 
         let fontFamCss = "'Caveat', 'Kalam', cursive";
         if (textState.fontFamily === 'sans')  fontFamCss = "Inter, system-ui, sans-serif";
@@ -1563,48 +1582,70 @@ const Canvas = forwardRef(function Canvas(
             ref={textRef}
             id="canvas-text-input"
             value={textState.value}
-            placeholder="Type here..."
+            placeholder="Type here…"
             onChange={e => {
               const v = e.target.value;
               setTextState(prev => prev ? { ...prev, value: v } : prev);
-              // Auto-expand
               const el = textRef.current;
               if (el) {
                 el.style.height = 'auto';
-                el.style.height = `${Math.max(el.scrollHeight, fsPx * 1.6)}px`;
+                el.style.height = Math.max(el.scrollHeight, lineH) + 'px';
                 el.style.width  = 'auto';
-                el.style.width  = `${Math.max(el.scrollWidth + 20, 120)}px`;
+                el.style.width  = Math.max(el.scrollWidth + 24, 120) + 'px';
               }
             }}
             onKeyDown={e => {
               e.stopPropagation();
-              if (e.key === 'Escape') { e.preventDefault(); commitText(); }
-              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitText(); }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                // Escape: discard new or revert existing, close editor
+                commitText();
+              }
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                commitText();
+              }
+              // Shift+Enter = newline (default textarea behavior)
             }}
+            // Prevent mousedown from bubbling to canvas (would commit immediately)
             onMouseDown={e => e.stopPropagation()}
-            onBlur={commitText}
+            onPointerDown={e => e.stopPropagation()}
+            onBlur={e => {
+              // Only commit if focus truly left to something outside the textarea
+              // (not to another element we're intentionally clicking)
+              setTimeout(() => {
+                if (committingRef.current) return;
+                const active = document.activeElement;
+                if (!textRef.current || active === textRef.current) return;
+                commitText();
+              }, 50);
+            }}
             style={{
               position: 'absolute',
               left: `${left}px`,
               top:  `${top}px`,
               minWidth: 120,
-              minHeight: `${fsPx * 1.6}px`,
-              padding: '2px 6px',
+              minHeight: `${lineH}px`,
+              padding: '0 4px',
               margin: 0,
-              font: `600 ${fsPx}px/${1.35} ${fontFamCss}`,
+              fontFamily: fontFamCss,
+              fontSize: `${fsPx}px`,
+              fontWeight: 600,
+              lineHeight: 1.35,
               textAlign: textState.textAlign || 'left',
               color: textState.color || colorRef.current,
               caretColor: textState.color || colorRef.current,
-              background: 'rgba(255,255,255,0.08)',
-              border: '1.5px dashed rgba(108,99,255,0.75)',
-              borderRadius: 4,
+              background: 'transparent',
+              border: '1.5px dashed rgba(108,99,255,0.8)',
+              borderRadius: 3,
               outline: 'none',
               resize: 'none',
               zIndex: 600,
-              whiteSpace: 'pre',
+              // Keep pre-wrap so newlines render correctly
+              whiteSpace: 'pre-wrap',
               overflow: 'hidden',
               boxSizing: 'content-box',
-              backdropFilter: 'blur(2px)',
+              // No backdrop — text should look exactly like on-canvas text
             }}
           />
         );
