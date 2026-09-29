@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Undo2, Redo2, Trash2, Download, ZoomIn, ZoomOut, Maximize2, Sun, Moon
+  Undo2, Redo2, Trash2, Download, ZoomIn, ZoomOut, Maximize2, Sun, Moon, Copy, Check
 } from 'lucide-react';
 
 import Canvas from './components/Canvas.jsx';
@@ -94,6 +94,16 @@ export default function App() {
   // ── History state ────────────────────────────────────────────────
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
+  const [copiedRoom, setCopiedRoom] = useState(false);
+
+  const handleCopyRoomId = useCallback(() => {
+    if (!roomId) return;
+    navigator.clipboard.writeText(roomId).then(() => {
+      setCopiedRoom(true);
+      showToast(`📋 Room ID "${roomId}" copied!`);
+      setTimeout(() => setCopiedRoom(false), 2000);
+    });
+  }, [roomId, showToast]);
 
   // ── Selected Shape sync ──────────────────────────────────────────
   const handleSelectShape = useCallback((shape) => {
@@ -188,6 +198,10 @@ export default function App() {
     canvasRef.current?.loadShapes?.([]);
   }, []);
 
+  const handlePeerShapesReordered = useCallback((shapes) => {
+    canvasRef.current?.reorderShapes?.(shapes);
+  }, []);
+
   const handleInitialShapes = useCallback((shapes) => {
     canvasRef.current?.loadShapes?.(shapes);
   }, []);
@@ -200,16 +214,18 @@ export default function App() {
     emitShapeUpdated,
     emitShapeDeleted,
     emitCanvasCleared,
+    emitShapesReordered,
   } = useMultiplayer({
     roomId,
     userId,
     userName,
     enabled: multiplayerEnabled,
-    onPeerShapeAdded:    handlePeerShapeAdded,
-    onPeerShapeUpdated:  handlePeerShapeUpdated,
-    onPeerShapeDeleted:  handlePeerShapeDeleted,
-    onPeerCanvasCleared: handlePeerCanvasCleared,
-    onInitialShapes:     handleInitialShapes,
+    onPeerShapeAdded:        handlePeerShapeAdded,
+    onPeerShapeUpdated:      handlePeerShapeUpdated,
+    onPeerShapeDeleted:      handlePeerShapeDeleted,
+    onPeerCanvasCleared:     handlePeerCanvasCleared,
+    onPeerShapesReordered:   handlePeerShapesReordered,
+    onInitialShapes:         handleInitialShapes,
   });
 
   // Sync pan/zoom for cursor coordinate conversion
@@ -271,24 +287,33 @@ export default function App() {
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
 
-        {/* Multiplayer indicator badge */}
-        {multiplayerEnabled && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 5,
-            background: isConnected ? 'rgba(46,204,113,0.15)' : 'rgba(231,76,60,0.12)',
-            border: `1px solid ${isConnected ? '#2ecc71' : '#e74c3c'}`,
-            borderRadius: 20, padding: '3px 10px',
-            fontSize: 11, fontWeight: 700,
-            color: isConnected ? '#27ae60' : '#c0392b',
-            fontFamily: 'Inter, system-ui, sans-serif',
-          }}>
+        {/* Multiplayer indicator badge with copy button */}
+        {multiplayerEnabled && roomId && (
+          <button
+            id="copy-room-badge-btn"
+            onClick={handleCopyRoomId}
+            title="Click to copy Room ID directly"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: isConnected ? 'rgba(46,204,113,0.15)' : 'rgba(231,76,60,0.12)',
+              border: `1px solid ${isConnected ? '#2ecc71' : '#e74c3c'}`,
+              borderRadius: 20, padding: '4px 10px',
+              fontSize: 11, fontWeight: 700,
+              color: isConnected ? '#27ae60' : '#c0392b',
+              fontFamily: 'Inter, system-ui, sans-serif',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+            }}
+          >
             <div style={{
               width: 6, height: 6, borderRadius: '50%',
               background: isConnected ? '#2ecc71' : '#e74c3c',
               animation: isConnected ? 'pulse 2s infinite' : 'none',
+              flexShrink: 0,
             }} />
-            {isConnected ? `Live · Room ${roomId}` : 'Reconnecting…'}
-          </div>
+            <span>{isConnected ? `Room: ${roomId}` : 'Reconnecting…'}</span>
+            {copiedRoom ? <Check size={12} color="#27ae60" /> : <Copy size={12} />}
+          </button>
         )}
       </div>
 
@@ -331,6 +356,7 @@ export default function App() {
           onShapeAdded={multiplayerEnabled ? emitShapeAdded : undefined}
           onShapeUpdated={multiplayerEnabled ? emitShapeUpdated : undefined}
           onShapeDeleted={multiplayerEnabled ? emitShapeDeleted : undefined}
+          onShapesReordered={multiplayerEnabled ? emitShapesReordered : undefined}
         />
 
         {/* Peer cursors overlay (only in multiplayer) */}

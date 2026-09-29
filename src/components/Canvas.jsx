@@ -550,7 +550,7 @@ function drawSelBox(ctx, s) {
 }
 
 /* ─── Full redraw ───────────────────────────────────────────── */
-function redrawAll(canvas, shapes, selId, pan, zoom = 100) {
+function redrawAll(canvas, shapes, selId, pan, zoom = 100, editingId = null) {
   if (!canvas) return;
   const { width, height } = canvas;
   const ctx = canvas.getContext('2d');
@@ -564,6 +564,8 @@ function redrawAll(canvas, shapes, selId, pan, zoom = 100) {
   ctx.scale(scale, scale);
 
   shapes.forEach(s => {
+    // Hide the shape currently being edited directly in the inline editor
+    if (editingId && s.id === editingId) return;
     const b = bounds(s);
     const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     if (s.angle) {
@@ -576,8 +578,8 @@ function redrawAll(canvas, shapes, selId, pan, zoom = 100) {
     if (s.angle) ctx.restore();
   });
 
-  // Selection overlay
-  if (selId) {
+  // Selection overlay — hide if currently editing that shape
+  if (selId && selId !== editingId) {
     const sel = shapes.find(s => s.id === selId);
     if (sel) drawSelBox(ctx, sel);
   }
@@ -611,6 +613,7 @@ const Canvas = forwardRef(function Canvas(
     onShapeAdded,
     onShapeUpdated,
     onShapeDeleted,
+    onShapesReordered,
   }, ref,
 ) {
   const canvasRef = useRef(null);
@@ -664,26 +667,50 @@ const Canvas = forwardRef(function Canvas(
   useEffect(() => { opRef.current       = opacity;         }, [opacity]);
 
   // Sync prop changes to currently selected shape + broadcast to multiplayer peers
+  // Track previous prop values and selection ID so we ONLY update the property that actually changed.
+  // This prevents changing color or fill from resetting font size or other properties!
+  const prevPropsRef = useRef({
+    color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity
+  });
+  const lastSelIdRef = useRef(null);
+
   useEffect(() => {
+    // If the selected shape changed (or deselected), take snapshot and don't apply edits
+    if (selIdRef.current !== lastSelIdRef.current) {
+      lastSelIdRef.current = selIdRef.current;
+      prevPropsRef.current = {
+        color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity
+      };
+      return;
+    }
+
     if (!selIdRef.current) return;
+
+    const prevP = prevPropsRef.current;
+    const changed = {};
+
+    if (color !== prevP.color) changed.color = color;
+    if (backgroundColor !== prevP.backgroundColor) changed.bg = backgroundColor;
+    if (fillStyle !== prevP.fillStyle) changed.fillStyle = fillStyle;
+    if (brushSize !== prevP.brushSize) changed.sz = brushSize;
+    if (strokeStyle !== prevP.strokeStyle) changed.strokeStyle = strokeStyle;
+    if (sloppiness !== prevP.sloppiness) changed.sloppiness = sloppiness;
+    if (fontFamily !== prevP.fontFamily) changed.fontFamily = fontFamily;
+    if (fontSize !== prevP.fontSize) changed.fs = fontSize;
+    if (textAlign !== prevP.textAlign) changed.textAlign = textAlign;
+    if (opacity !== prevP.opacity) changed.opacity = opacity;
+
+    prevPropsRef.current = {
+      color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity
+    };
+
+    if (Object.keys(changed).length === 0) return;
+
     setShapes(prev => {
       const next = prev.map(s => {
         if (s.id !== selIdRef.current) return s;
-        return {
-          ...s,
-          color,
-          bg: backgroundColor,
-          fillStyle,
-          sz: brushSize,
-          strokeStyle,
-          sloppiness,
-          fontFamily,
-          fs: fontSize,
-          textAlign,
-          opacity,
-        };
+        return { ...s, ...changed };
       });
-      // Emit the updated shape to peers (only if something actually changed)
       const updated = next.find(s => s.id === selIdRef.current);
       if (updated) onShapeUpdated?.(updated);
       return next;
@@ -806,9 +833,11 @@ const Canvas = forwardRef(function Canvas(
       } else if (action === 'front') {
         copy.push(item);
       }
+      shapesRef.current = copy;
+      onShapesReordered?.(copy);
       return copy;
     });
-  }, [pushHist]);
+  }, [pushHist, onShapesReordered]);
 
   // ── Object/Segment Eraser Action ────────────────────────
   const eraseAtPos = useCallback((pos) => {
@@ -894,6 +923,22 @@ const Canvas = forwardRef(function Canvas(
         return next;
       });
     },
+    // Multiplayer: reorder shapes from a peer's z-index change
+    reorderShapes(incoming) {
+      if (!Array.isArray(incoming) || incoming.length === 0) return;
+      setShapes(prev => {
+        const map = new Map(prev.map(s => [s.id, s]));
+        const reordered = incoming.map(item => {
+          const id = typeof item === 'string' ? item : item.id;
+          return map.get(id) || item;
+        }).filter(Boolean);
+        const incomingIds = new Set(incoming.map(item => typeof item === 'string' ? item : item.id));
+        const rest = prev.filter(s => !incomingIds.has(s.id));
+        const next = [...reordered, ...rest];
+        shapesRef.current = next;
+        return next;
+      });
+    },
     changeLayer,
     copy: copySelected,
     cut: cutSelected,
@@ -930,7 +975,7 @@ const Canvas = forwardRef(function Canvas(
   }), [pushHist, onHistoryChange, changeLayer, copySelected, cutSelected, pasteSelected, duplicateSelected]);
 
   // ── Redraw on state change ───────────────────────────────
-  useEffect(() => { redrawAll(canvasRef.current, shapes, selId, pan, zoom); }, [shapes, selId, pan, zoom]);
+  useEffect(() => { redrawAll(canvasRef.current, shapes, selId, pan, zoom, textState?.shapeId); }, [shapes, selId, pan, zoom, textState]);
 
   // ── Canvas resize ────────────────────────────────────────
   useEffect(() => {
@@ -999,60 +1044,130 @@ const Canvas = forwardRef(function Canvas(
   const textStateRef = useRef(null);
   useEffect(() => { textStateRef.current = textState; }, [textState]);
 
+  const openText = useCallback((worldX, worldY, initialVal = '', shapeId = null, existingShape = null) => {
+    setTextState({
+      shapeId,
+      worldX,
+      worldY,
+      value: initialVal,
+      fs: existingShape?.fs || fsRef.current || 22,
+      color: existingShape?.color || colorRef.current,
+      fontFamily: existingShape?.fontFamily || fontRef.current || 'caveat',
+      textAlign: existingShape?.textAlign || alignRef.current || 'left',
+      opacity: existingShape?.opacity ?? opRef.current ?? 100,
+    });
+  }, []);
+
+  // Realtime keystroke sync to teammates
+  const handleLiveTextSync = useCallback((val) => {
+    const ts = textStateRef.current;
+    if (!ts) return;
+
+    if (ts.shapeId) {
+      // Existing text shape: update shape text and emit shape-updated immediately
+      setShapes(prev => {
+        const next = prev.map(s => {
+          if (s.id !== ts.shapeId) return s;
+          return { ...s, text: val };
+        });
+        const updated = next.find(s => s.id === ts.shapeId);
+        if (updated) onShapeUpdated?.(updated);
+        return next;
+      });
+    } else if (val.trim()) {
+      // Brand new text: create shape on first typed character so teammate sees it live!
+      const newId = uid();
+      const newShape = {
+        id: newId,
+        type: 'text',
+        x: ts.worldX,
+        y: ts.worldY,
+        text: val,
+        fs: ts.fs || fsRef.current || 22,
+        color: ts.color || colorRef.current,
+        sz: szRef.current,
+        opacity: ts.opacity ?? opRef.current ?? 100,
+        fontFamily: ts.fontFamily || fontRef.current || 'caveat',
+        textAlign: ts.textAlign || alignRef.current || 'left',
+        seed: Math.floor(Math.random() * 100000),
+      };
+      setTextState(prev => prev ? { ...prev, shapeId: newId, value: val } : prev);
+      setShapes(prev => [...prev, newShape]);
+      onShapeAdded?.(newShape);
+    }
+  }, [onShapeAdded, onShapeUpdated]);
+
   const commitText = useCallback(() => {
     const ts = textStateRef.current;
     setTextState(null);
-    if (!ts || !ts.value.trim()) {
+    if (!ts) return;
+
+    if (!ts.value.trim()) {
+      // If empty on commit, remove the shape if it was created
+      if (ts.shapeId) {
+        setShapes(prev => prev.filter(s => s.id !== ts.shapeId));
+        onShapeDeleted?.(ts.shapeId);
+        setSelId(null);
+      }
       onToolChange?.('select');
       return;
     }
 
+    pushHist();
     if (ts.shapeId) {
-      pushHist();
-      setShapes(prev => prev.map(s => {
-        if (s.id !== ts.shapeId) return s;
-        return {
-          ...s,
-          text: ts.value,
-          // Preserve the shape's existing font size when editing.
-          // Only override if the user explicitly picked a different size via panel.
-          fs: s.fs || fsRef.current,
-          fontFamily: fontRef.current || s.fontFamily,
-          textAlign: alignRef.current || s.textAlign,
-        };
-      }));
+      setShapes(prev => {
+        const next = prev.map(s => {
+          if (s.id !== ts.shapeId) return s;
+          return {
+            ...s,
+            text: ts.value,
+            fs: s.fs || ts.fs || fsRef.current,
+            fontFamily: s.fontFamily || ts.fontFamily || fontRef.current,
+            textAlign: s.textAlign || ts.textAlign || alignRef.current,
+            color: s.color || ts.color || colorRef.current,
+          };
+        });
+        const finalShape = next.find(s => s.id === ts.shapeId);
+        if (finalShape) onShapeUpdated?.(finalShape);
+        return next;
+      });
       setSelId(ts.shapeId);
     } else {
       const newId = uid();
       const shape = {
-        id: newId, type: 'text',
-        x: ts.worldX, y: ts.worldY, text: ts.value,
-        fs: fsRef.current || 22,
-        color: colorRef.current,
+        id: newId,
+        type: 'text',
+        x: ts.worldX,
+        y: ts.worldY,
+        text: ts.value,
+        fs: ts.fs || fsRef.current || 22,
+        color: ts.color || colorRef.current,
         sz: szRef.current,
-        opacity: opRef.current,
-        fontFamily: fontRef.current,
-        textAlign: alignRef.current,
+        opacity: ts.opacity ?? opRef.current ?? 100,
+        fontFamily: ts.fontFamily || fontRef.current || 'caveat',
+        textAlign: ts.textAlign || alignRef.current || 'left',
         seed: Math.floor(Math.random() * 100000),
       };
-      pushHist();
       setShapes(prev => [...prev, shape]);
       setSelId(newId);
+      onShapeAdded?.(shape);
     }
     onToolChange?.('select');
-  }, [pushHist, onToolChange]);
+  }, [pushHist, onToolChange, onShapeAdded, onShapeUpdated, onShapeDeleted]);
 
-  const openText = useCallback((screenX, screenY, worldX, worldY, initialVal = '', shapeId = null) => {
-    setTextState({ screenX, screenY, worldX, worldY, value: initialVal, shapeId });
-  }, []);
-
-  const hadText = useRef(false);
+  // Auto-focus and auto-expand inline textarea on open
   useEffect(() => {
-    if (textState && !hadText.current) {
-      hadText.current = true;
-      setTimeout(() => textRef.current?.focus(), 50);
+    if (textState && textRef.current) {
+      const el = textRef.current;
+      el.focus();
+      const scale = zoomRef.current / 100;
+      const fsPx = Math.max((textState.fs || 22) * scale, 12);
+      el.style.height = 'auto';
+      el.style.height = `${Math.max(el.scrollHeight, fsPx * 1.35)}px`;
+      el.style.width = 'auto';
+      el.style.width = `${Math.max(el.scrollWidth + 12, 80)}px`;
+      el.selectionStart = el.selectionEnd = el.value.length;
     }
-    if (!textState) hadText.current = false;
   }, [textState]);
 
   // ── MOUSE / TOUCH DOWN ───────────────────────────────────
@@ -1097,30 +1212,21 @@ const Canvas = forwardRef(function Canvas(
 
     // ── TEXT TOOL ─────────────────────────────────────────────
     if (t === 'text') {
+      if (textStateRef.current) {
+        commitText();
+        return;
+      }
+      // If clicked directly on an existing text shape, edit it directly!
+      const hit = [...shapesRef.current].reverse().find(s => hitShape(pos.x, pos.y, s));
+      if (hit && hit.type === 'text') {
+        openText(hit.x, hit.y, hit.text || '', hit.id, hit);
+        return;
+      }
       if (selIdRef.current) {
         setSelId(null);
         selIdRef.current = null;
-        redrawAll(canvasRef.current, shapesRef.current, null, panRef.current, zoomRef.current);
-        onToolChange?.('select');
-        return;
       }
-      // Don't open if text editor is already open
-      if (textStateRef.current) return;
-
-      // Cancel previous pending timer (in case this is 1st click of a double-click)
-      if (pendingTextTimer.current) {
-        clearTimeout(pendingTextTimer.current);
-        pendingTextTimer.current = null;
-      }
-
-      const sp = getScreenPos(e, canvas);
-      // 250ms delay: dblclick cancels this timer, so we don't open two boxes
-      pendingTextTimer.current = setTimeout(() => {
-        pendingTextTimer.current = null;
-        if (!textStateRef.current) { // still closed after delay
-          openText(sp.x, sp.y, pos.x, pos.y);
-        }
-      }, 250);
+      openText(pos.x, pos.y, '', null);
       return;
     }
 
@@ -1342,36 +1448,25 @@ const Canvas = forwardRef(function Canvas(
     onShapeAdded?.(shape);
   }, [onToolChange, onShapeUpdated]);
 
-  // ── DOUBLE CLICK → open text editor (existing text) or new text box ──
+  // ── DOUBLE CLICK → edit existing text directly ──
   const onDblClick = useCallback((e) => {
-    // Cancel any pending single-click text open (prevents double text boxes)
-    if (pendingTextTimer.current) {
-      clearTimeout(pendingTextTimer.current);
-      pendingTextTimer.current = null;
-    }
-
     const canvas = canvasRef.current;
     const pan    = panRef.current;
     const zm     = zoomRef.current;
     const pos    = getPos(e, canvas, pan, zm);
     const t      = toolRef.current;
 
-    const hit = [...shapesRef.current].reverse().find(s => hitShape(pos.x, pos.y, s));
-
     if (textStateRef.current) commitText();
 
+    const hit = [...shapesRef.current].reverse().find(s => hitShape(pos.x, pos.y, s));
+
     if (hit && hit.type === 'text') {
-      // Editing existing text: position textarea at the text's actual screen coords
-      const scale   = zm / 100;
-      const textScrX = hit.x * scale + pan.x;
-      const textScrY = hit.y * scale + pan.y;
-      openText(textScrX, textScrY, hit.x, hit.y, hit.text || '', hit.id);
-    } else if (!hit && (t === 'text' || t === 'select')) {
-      // Empty canvas area: open new text box only on text or select tool
-      const sp = getScreenPos(e, canvas);
-      openText(sp.x, sp.y, pos.x, pos.y, '', null);
+      // Edit existing text shape directly
+      openText(hit.x, hit.y, hit.text || '', hit.id, hit);
+    } else if (!hit && t === 'text') {
+      // On empty area with text tool, open new text box
+      openText(pos.x, pos.y, '', null);
     }
-    // Non-text shapes: double-click does nothing (no unexpected text boxes)
   }, [commitText, openText]);
 
   // ── KEYBOARD ─────────────────────────────────────────────
@@ -1503,46 +1598,69 @@ const Canvas = forwardRef(function Canvas(
         onDoubleClick={onDblClick}
       />
 
-      {textState && (
-        <textarea
-          ref={textRef}
-          id="canvas-text-input"
-          value={textState.value}
-          placeholder="Type here..."
-          onChange={e => {
-            const v = e.target.value;
-            setTextState(prev => prev ? { ...prev, value: v } : prev);
-          }}
-          onKeyDown={e => {
-            e.stopPropagation();
-            if (e.key === 'Escape') { e.preventDefault(); commitText(); }
-            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitText(); }
-          }}
-          onMouseDown={e => e.stopPropagation()}
-          onBlur={commitText}
-          style={{
-            position: 'absolute',
-            left: textState.screenX,
-            top:  textState.screenY,
-            minWidth: 140,
-            minHeight: 40,
-            padding: '4px 8px',
-            font: `600 ${Math.max((fsRef.current || 22) * (zoom / 100), 16)}px ${fontFamilyCss}`,
-            textAlign: alignRef.current || 'left',
-            lineHeight: 1.35,
-            color: colorRef.current,
-            caretColor: colorRef.current,
-            background: 'transparent',
-            border: '1px dashed #6c63ff',
-            borderRadius: 6,
-            outline: 'none',
-            resize: 'both',
-            zIndex: 600,
-            whiteSpace: 'pre',
-            overflow: 'auto',
-          }}
-        />
-      )}
+      {textState && (() => {
+        const scale = zoom / 100;
+        const left  = textState.worldX * scale + pan.x;
+        const top   = textState.worldY * scale + pan.y;
+        const fsPx  = Math.max(textState.fs * scale, 12);
+
+        let fontFamCss = "'Caveat', 'Kalam', cursive";
+        if (textState.fontFamily === 'sans')  fontFamCss = "Inter, system-ui, sans-serif";
+        if (textState.fontFamily === 'code')  fontFamCss = "'Fira Code', 'Courier New', monospace";
+        if (textState.fontFamily === 'serif') fontFamCss = "Georgia, serif";
+
+        return (
+          <textarea
+            ref={textRef}
+            id="canvas-text-input"
+            value={textState.value}
+            placeholder="Type text..."
+            autoFocus
+            onChange={e => {
+              const v = e.target.value;
+              setTextState(prev => prev ? { ...prev, value: v } : prev);
+              if (textRef.current) {
+                textRef.current.style.height = 'auto';
+                textRef.current.style.height = `${Math.max(textRef.current.scrollHeight, fsPx * 1.35)}px`;
+                textRef.current.style.width = 'auto';
+                textRef.current.style.width = `${Math.max(textRef.current.scrollWidth + 12, 80)}px`;
+              }
+              handleLiveTextSync(v);
+            }}
+            onKeyDown={e => {
+              e.stopPropagation();
+              if (e.key === 'Escape') { e.preventDefault(); commitText(); }
+              if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitText(); }
+            }}
+            onMouseDown={e => e.stopPropagation()}
+            onBlur={commitText}
+            style={{
+              position: 'absolute',
+              left: `${left}px`,
+              top:  `${top}px`,
+              minWidth: 80,
+              minHeight: `${fsPx * 1.35}px`,
+              padding: '0 2px',
+              margin: 0,
+              font: `600 ${fsPx}px ${fontFamCss}`,
+              textAlign: textState.textAlign || 'left',
+              lineHeight: 1.35,
+              color: textState.color || colorRef.current,
+              caretColor: textState.color || colorRef.current,
+              background: 'transparent',
+              border: '1.5px dashed rgba(108, 99, 255, 0.75)',
+              borderRadius: 4,
+              outline: 'none',
+              resize: 'none',
+              zIndex: 600,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflow: 'hidden',
+              boxSizing: 'content-box',
+            }}
+          />
+        );
+      })()}
     </>
   );
 });

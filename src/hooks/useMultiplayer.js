@@ -62,6 +62,7 @@ export function useMultiplayer({
   onPeerShapeUpdated,
   onPeerShapeDeleted,
   onPeerCanvasCleared,
+  onPeerShapesReordered,
   onInitialShapes,
 }) {
   const socketRef       = useRef(null);
@@ -74,11 +75,13 @@ export function useMultiplayer({
   const cbUpdated  = useRef(onPeerShapeUpdated);
   const cbDeleted  = useRef(onPeerShapeDeleted);
   const cbCleared  = useRef(onPeerCanvasCleared);
+  const cbReordered = useRef(onPeerShapesReordered);
   const cbInitial  = useRef(onInitialShapes);
   useEffect(() => { cbAdded.current   = onPeerShapeAdded;   }, [onPeerShapeAdded]);
   useEffect(() => { cbUpdated.current = onPeerShapeUpdated; }, [onPeerShapeUpdated]);
   useEffect(() => { cbDeleted.current = onPeerShapeDeleted; }, [onPeerShapeDeleted]);
   useEffect(() => { cbCleared.current = onPeerCanvasCleared;}, [onPeerCanvasCleared]);
+  useEffect(() => { cbReordered.current = onPeerShapesReordered;}, [onPeerShapesReordered]);
   useEffect(() => { cbInitial.current = onInitialShapes;    }, [onInitialShapes]);
 
   const getPeerColor = useCallback((id) => {
@@ -148,6 +151,7 @@ export function useMultiplayer({
     socket.on('peer-shape-updated', ({ shape })   => cbUpdated.current?.(shape));
     socket.on('peer-shape-deleted', ({ shapeId }) => cbDeleted.current?.(shapeId));
     socket.on('peer-canvas-cleared', ()           => cbCleared.current?.());
+    socket.on('peer-shapes-reordered', ({ shapes }) => cbReordered.current?.(shapes));
 
     return () => {
       socket.disconnect();
@@ -174,6 +178,7 @@ export function useMultiplayer({
   const emitShapeUpdated = useCallback((shape)   => socketRef.current?.emit('shape-updated', { roomId, shape }),   [roomId]);
   const emitShapeDeleted = useCallback((shapeId) => socketRef.current?.emit('shape-deleted', { roomId, shapeId }), [roomId]);
   const emitCanvasCleared = useCallback(()       => socketRef.current?.emit('canvas-cleared', { roomId }),         [roomId]);
+  const emitShapesReordered = useCallback((shapes) => socketRef.current?.emit('shapes-reordered', { roomId, shapes }), [roomId]);
 
   return {
     isConnected,
@@ -183,5 +188,6 @@ export function useMultiplayer({
     emitShapeUpdated,
     emitShapeDeleted,
     emitCanvasCleared,
+    emitShapesReordered,
   };
 }

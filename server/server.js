@@ -196,6 +196,16 @@ io.on('connection', (socket) => {
     saveShapesToDB(roomId, room.shapes);
   });
 
+  // ── SHAPES REORDERED (z-index change) ──────────────────────────
+  socket.on('shapes-reordered', ({ roomId, shapes }) => {
+    const room = getRoom(roomId);
+    if (Array.isArray(shapes)) {
+      room.shapes = shapes;
+      socket.to(roomId).emit('peer-shapes-reordered', { shapes });
+      saveShapesToDB(roomId, room.shapes);
+    }
+  });
+
   // ── CANVAS CLEARED ─────────────────────────────────────────────
   socket.on('canvas-cleared', ({ roomId }) => {
     const room = getRoom(roomId);
