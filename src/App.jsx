@@ -38,25 +38,29 @@ export default function App() {
   const myColor   = useMemo(() => getNextPeerColor(), []);
 
   // Lobby: shown on first load. If ?room= is in URL, validate it first before skipping lobby.
-  const [showLobby, setShowLobby]       = useState(true); // always show until validated
+  // lobbyChecking: true while async URL-room validation is in flight → hide lobby spinner
+  const [showLobby, setShowLobby]       = useState(!getRoomIdFromURL()); // hide until URL check done if room in URL
+  const [lobbyChecking, setLobbyChecking] = useState(!!getRoomIdFromURL());
   const [lobbyError, setLobbyError]     = useState('');
   const [lobbyPrefillRoomId, setLobbyPrefillRoomId] = useState(null);
   const [roomId, setRoomId]             = useState(null);
   const [userName, setUserName]         = useState(() => generateRandomName());
   const [multiplayerEnabled, setMultiplayerEnabled] = useState(false);
 
-  // On mount: if ?room= param exists, validate it then auto-join or show error in lobby
+  // On mount: if ?room= param exists, validate it then show name-entry lobby
   useEffect(() => {
     if (!urlRoomId) {
       // No room param — just show the lobby normally
       setShowLobby(true);
+      setLobbyChecking(false);
       return;
     }
 
-    // Validate the room from URL param before entering
+    // Validate the room from URL param before showing lobby
     checkRoom(urlRoomId).then(({ exists, offline }) => {
+      setLobbyChecking(false);
       if (exists || offline) {
-        // Valid room — show lobby pre-filled with the room id so user can pick a name
+        // Valid room — show lobby pre-filled with the room id so user picks a name
         setLobbyPrefillRoomId(urlRoomId);
         setShowLobby(true);
       } else {
@@ -273,8 +277,21 @@ export default function App() {
 
   return (
     <div className="app">
-      {/* Room Lobby (only shown when no ?room= and user hasn't chosen yet) */}
-      {showLobby && (
+      {/* Validating invite link — show minimal loading screen */}
+      {lobbyChecking && (
+        <div style={{
+          position: 'fixed', inset: 0, display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center', zIndex: 9999,
+          background: 'var(--bg, #f5f5f0)', fontFamily: 'Inter, system-ui, sans-serif',
+          gap: 12,
+        }}>
+          <div style={{ fontSize: 32 }}>✏️</div>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-secondary, #888)' }}>Checking invite link…</div>
+        </div>
+      )}
+
+      {/* Room Lobby (only shown when lobby check done and user hasn't entered yet) */}
+      {!lobbyChecking && showLobby && (
         <RoomLobby onJoin={handleJoinRoom} onSolo={handleSolo} prefillError={lobbyError} prefillRoomId={lobbyPrefillRoomId} />
       )}
 
