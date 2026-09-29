@@ -616,6 +616,7 @@ const Canvas = forwardRef(function Canvas(
     onShapeUpdated,
     onShapeDeleted,
     onShapesReordered,
+    onCanvasSync,        // (shapes[]) → full canvas state replace (for undo/redo/erase)
   }, ref,
 ) {
   const canvasRef = useRef(null);
@@ -878,32 +879,41 @@ const Canvas = forwardRef(function Canvas(
     }
   }, []);
 
-  // Call on mouseUp after an erase stroke to flush multiplayer events
+  // Call on mouseUp after an erase stroke — sends the full remaining canvas
+  // to all peers so they see the erased result.
+  // (Full sync is simpler and always correct vs. trying to diff individual
+  //  erased/split IDs which can become stale during a multi-point stroke.)
   const flushEraseSync = useCallback(() => {
-    // Emit deleted shape IDs
-    erasedIdsRef.current.forEach(id => onShapeDeleted?.(id));
-    // Emit any new split segments as added shapes
-    erasedSplitRef.current.forEach(s => onShapeAdded?.(s));
-    // Reset accumulators
-    erasedIdsRef.current = new Set();
+    // Reset accumulators (kept for possible future use)
+    erasedIdsRef.current   = new Set();
     erasedSplitRef.current = [];
-  }, [onShapeAdded, onShapeDeleted]);
+    // Full canvas sync: replace server + peer state with current shapes
+    onCanvasSync?.(shapesRef.current);
+  }, [onCanvasSync]);
 
   // ── Expose API ────────────────────────────────────────────
   useImperativeHandle(ref, () => ({
     undo() {
       if (!hist.current.length) return;
       redoStk.current.push(shapesRef.current.map(s => ({ ...s })));
-      setShapes(hist.current.pop()); setSelId(null);
+      const restored = hist.current.pop();
+      shapesRef.current = restored;
+      setShapes(restored); setSelId(null);
       onHistoryChange?.({ canUndo: hist.current.length > 0, canRedo: true });
+      // Sync full canvas to all peers so they see the undo result
+      onCanvasSync?.(restored);
     },
     redo() {
       if (!redoStk.current.length) return;
       hist.current.push(shapesRef.current.map(s => ({ ...s })));
-      setShapes(redoStk.current.pop()); setSelId(null);
+      const restored = redoStk.current.pop();
+      shapesRef.current = restored;
+      setShapes(restored); setSelId(null);
       onHistoryChange?.({ canUndo: true, canRedo: redoStk.current.length > 0 });
+      // Sync full canvas to all peers so they see the redo result
+      onCanvasSync?.(restored);
     },
-    clear() { pushHist(); setShapes([]); setSelId(null); },
+    clear() { pushHist(); setShapes([]); setSelId(null); onCanvasSync?.([]); },
     // Multiplayer: load full shape list (called when joining a room with existing shapes)
     loadShapes(incoming) {
       const safe = Array.isArray(incoming) ? incoming : [];
@@ -992,7 +1002,7 @@ const Canvas = forwardRef(function Canvas(
       a.href = off.toDataURL('image/png');
       a.click();
     },
-  }), [pushHist, onHistoryChange, changeLayer, copySelected, cutSelected, pasteSelected, duplicateSelected]);
+  }), [pushHist, onHistoryChange, onCanvasSync, changeLayer, copySelected, cutSelected, pasteSelected, duplicateSelected]);
 
   // ── Canvas resize ────────────────────────────────────────
   useEffect(() => {

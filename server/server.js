@@ -196,6 +196,17 @@ io.on('connection', (socket) => {
     saveShapesToDB(roomId, room.shapes);
   });
 
+  // ── CANVAS FULL SYNC (undo / redo / erase) ────────────────────
+  // Replaces the entire room shape list with the provided snapshot.
+  socket.on('canvas-full-sync', ({ roomId, shapes }) => {
+    const room = getRoom(roomId);
+    if (Array.isArray(shapes)) {
+      room.shapes = shapes;
+      socket.to(roomId).emit('peer-canvas-full-sync', { shapes });
+      saveShapesToDB(roomId, room.shapes);
+    }
+  });
+
   // ── SHAPES REORDERED (z-index change) ──────────────────────────
   socket.on('shapes-reordered', ({ roomId, shapes }) => {
     const room = getRoom(roomId);

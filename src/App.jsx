@@ -202,6 +202,10 @@ export default function App() {
     canvasRef.current?.reorderShapes?.(shapes);
   }, []);
 
+  const handlePeerCanvasFullSync = useCallback((shapes) => {
+    canvasRef.current?.loadShapes?.(shapes);
+  }, []);
+
   const handleInitialShapes = useCallback((shapes) => {
     canvasRef.current?.loadShapes?.(shapes);
   }, []);
@@ -215,6 +219,7 @@ export default function App() {
     emitShapeDeleted,
     emitCanvasCleared,
     emitShapesReordered,
+    emitCanvasFullSync,
   } = useMultiplayer({
     roomId,
     userId,
@@ -225,6 +230,7 @@ export default function App() {
     onPeerShapeDeleted:      handlePeerShapeDeleted,
     onPeerCanvasCleared:     handlePeerCanvasCleared,
     onPeerShapesReordered:   handlePeerShapesReordered,
+    onPeerCanvasFullSync:     handlePeerCanvasFullSync,
     onInitialShapes:         handleInitialShapes,
   });
 
@@ -357,6 +363,7 @@ export default function App() {
           onShapeUpdated={multiplayerEnabled ? emitShapeUpdated : undefined}
           onShapeDeleted={multiplayerEnabled ? emitShapeDeleted : undefined}
           onShapesReordered={multiplayerEnabled ? emitShapesReordered : undefined}
+          onCanvasSync={multiplayerEnabled ? emitCanvasFullSync : undefined}
         />
 
         {/* Peer cursors overlay (only in multiplayer) */}
