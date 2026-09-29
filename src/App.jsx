@@ -40,6 +40,7 @@ export default function App() {
   // Lobby: shown on first load. If ?room= is in URL, validate it first before skipping lobby.
   const [showLobby, setShowLobby]       = useState(true); // always show until validated
   const [lobbyError, setLobbyError]     = useState('');
+  const [lobbyPrefillRoomId, setLobbyPrefillRoomId] = useState(null);
   const [roomId, setRoomId]             = useState(null);
   const [userName, setUserName]         = useState(() => generateRandomName());
   const [multiplayerEnabled, setMultiplayerEnabled] = useState(false);
@@ -55,10 +56,9 @@ export default function App() {
     // Validate the room from URL param before entering
     checkRoom(urlRoomId).then(({ exists, offline }) => {
       if (exists || offline) {
-        // Valid room — skip the lobby and enter directly
-        setRoomId(urlRoomId);
-        setMultiplayerEnabled(true);
-        setShowLobby(false);
+        // Valid room — show lobby pre-filled with the room id so user can pick a name
+        setLobbyPrefillRoomId(urlRoomId);
+        setShowLobby(true);
       } else {
         // Room doesn't exist — show lobby with error, clear invalid ?room= from URL
         const cleanUrl = new URL(window.location.href);
@@ -275,7 +275,7 @@ export default function App() {
     <div className="app">
       {/* Room Lobby (only shown when no ?room= and user hasn't chosen yet) */}
       {showLobby && (
-        <RoomLobby onJoin={handleJoinRoom} onSolo={handleSolo} prefillError={lobbyError} />
+        <RoomLobby onJoin={handleJoinRoom} onSolo={handleSolo} prefillError={lobbyError} prefillRoomId={lobbyPrefillRoomId} />
       )}
 
       {/* Dot-grid background */}

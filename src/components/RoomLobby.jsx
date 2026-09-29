@@ -9,9 +9,10 @@ import { generateRandomName, generateRoomId } from '../lib/randomNames.js';
 import { checkRoom } from '../hooks/useMultiplayer.js';
 import { Pencil, Users, ArrowRight, Shuffle, LogIn, Loader2 } from 'lucide-react';
 
-export default function RoomLobby({ onJoin, onSolo, prefillError }) {
-  const [mode, setMode]           = useState(null); // null | 'create' | 'join'
-  const [roomInput, setRoomInput] = useState('');
+export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId = null }) {
+  // If a room id came from URL param, drop straight into 'join' mode with it pre-filled
+  const [mode, setMode]           = useState(prefillRoomId ? 'join' : null); // null | 'create' | 'join'
+  const [roomInput, setRoomInput] = useState(prefillRoomId || '');
   const [nameInput, setNameInput] = useState(() => generateRandomName());
   const [error, setError]         = useState(prefillError || '');
   const [loading, setLoading]     = useState(false);
@@ -23,6 +24,13 @@ export default function RoomLobby({ onJoin, onSolo, prefillError }) {
   };
 
   const handleJoin = async () => {
+    // If prefillRoomId is set, the room was already validated by App.jsx — skip re-check
+    if (prefillRoomId) {
+      const name = nameInput.trim() || generateRandomName();
+      onJoin({ roomId: prefillRoomId, userName: name, isNewRoom: false });
+      return;
+    }
+
     const roomId = roomInput.trim().toLowerCase().replace(/[^a-z0-9]/g, '');
     if (!roomId) { setError('Please enter a Room ID.'); return; }
 
@@ -138,15 +146,22 @@ export default function RoomLobby({ onJoin, onSolo, prefillError }) {
         {/* Join Room */}
         {mode === 'join' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <label style={labelStyle}>Room ID</label>
-            <input
-              value={roomInput}
-              onChange={e => { setRoomInput(e.target.value); setError(''); }}
-              placeholder="e.g. abc12345"
-              maxLength={20}
-              onKeyDown={e => e.key === 'Enter' && !loading && handleJoin()}
-              style={{ ...inputStyle, borderColor: error ? '#e74c3c' : 'var(--border, #ddd)' }}
-            />
+            {prefillRoomId
+          ? <div style={{ background: 'rgba(108,99,255,0.08)', border: '1px solid rgba(108,99,255,0.25)', borderRadius: 10, padding: '10px 14px', fontSize: 13, fontWeight: 600, color: '#6c63ff', marginBottom: 4 }}>
+              🔗 You were invited to join room <strong>{prefillRoomId}</strong>. Enter your name to proceed.
+            </div>
+          : <label style={labelStyle}>Room ID</label>
+        }
+            {!prefillRoomId && (
+              <input
+                value={roomInput}
+                onChange={e => { setRoomInput(e.target.value); setError(''); }}
+                placeholder="e.g. abc12345"
+                maxLength={20}
+                onKeyDown={e => e.key === 'Enter' && !loading && handleJoin()}
+                style={{ ...inputStyle, borderColor: error ? '#e74c3c' : 'var(--border, #ddd)' }}
+              />
+            )}
             {error && <p style={{ margin: 0, fontSize: 12, color: '#e74c3c' }}>{error}</p>}
             <button
               onClick={handleJoin}
@@ -158,7 +173,9 @@ export default function RoomLobby({ onJoin, onSolo, prefillError }) {
                 : <><LogIn size={16} /> Join Room</>
               }
             </button>
-            <button onClick={() => { setMode(null); setError(''); }} style={ghostBtnStyle}>← Back</button>
+            {!prefillRoomId && (
+              <button onClick={() => { setMode(null); setError(''); }} style={ghostBtnStyle}>← Back</button>
+            )}
           </div>
         )}
       </div>
