@@ -645,48 +645,13 @@ const Canvas = forwardRef(function Canvas(
   const opRef       = useRef(opacity);
 
   useEffect(() => { shapesRef.current = shapes; }, [shapes]);
-  // Sync prop changes to currently selected shape + broadcast to multiplayer peers
-  // Track previous prop values and selection ID so we ONLY update the property that actually changed.
-  // This prevents changing color or fill from resetting font size or other properties!
-  const prevPropsRef = useRef({
-    color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity
-  });
-  const lastSelIdRef = useRef(null);
-
   useEffect(() => {
     selIdRef.current  = selId;
-    lastSelIdRef.current = selId;
     if (selId) {
       const selected = shapesRef.current.find(s => s.id === selId);
-      if (selected) {
-        onSelectShape?.(selected);
-        prevPropsRef.current = {
-          color: selected.color || colorRef.current,
-          backgroundColor: selected.bg || 'transparent',
-          fillStyle: selected.fillStyle || fillStRef.current || 'hachure',
-          brushSize: selected.sz || szRef.current || 2,
-          strokeStyle: selected.strokeStyle || strokeStRef.current || 'solid',
-          sloppiness: selected.sloppiness ?? slopRef.current ?? 1,
-          fontFamily: selected.fontFamily || fontRef.current || 'hand',
-          fontSize: selected.fs || fsRef.current || 22,
-          textAlign: selected.textAlign || alignRef.current || 'left',
-          opacity: selected.opacity ?? opRef.current ?? 100,
-        };
-      }
+      if (selected) onSelectShape?.(selected);
     } else {
       onSelectShape?.(null);
-      prevPropsRef.current = {
-        color: colorRef.current,
-        backgroundColor: bgRef.current || 'transparent',
-        fillStyle: fillStRef.current || 'hachure',
-        brushSize: szRef.current || 2,
-        strokeStyle: strokeStRef.current || 'solid',
-        sloppiness: slopRef.current ?? 1,
-        fontFamily: fontRef.current || 'hand',
-        fontSize: fsRef.current || 22,
-        textAlign: alignRef.current || 'left',
-        opacity: opRef.current ?? 100,
-      };
     }
   }, [selId, onSelectShape]);
 
@@ -704,28 +669,25 @@ const Canvas = forwardRef(function Canvas(
   useEffect(() => { alignRef.current    = textAlign;       }, [textAlign]);
   useEffect(() => { opRef.current       = opacity;         }, [opacity]);
 
-  useEffect(() => {
-    if (!selIdRef.current) return;
+  // Sync prop changes to currently selected shape + broadcast to multiplayer peers
+  // Track previous prop values and selection ID so we ONLY update the property that actually changed.
+  // This prevents changing color or fill from resetting font size or other properties!
+  const prevPropsRef = useRef({
+    color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity
+  });
+  const lastSelIdRef = useRef(null);
 
-    // Resync baseline if selection changed
+  useEffect(() => {
+    // If the selected shape changed (or deselected), take snapshot and don't apply edits
     if (selIdRef.current !== lastSelIdRef.current) {
       lastSelIdRef.current = selIdRef.current;
-      const selected = shapesRef.current.find(s => s.id === selIdRef.current);
-      if (selected) {
-        prevPropsRef.current = {
-          color: selected.color || color,
-          backgroundColor: selected.bg || 'transparent',
-          fillStyle: selected.fillStyle || fillStyle,
-          brushSize: selected.sz || brushSize,
-          strokeStyle: selected.strokeStyle || strokeStyle,
-          sloppiness: selected.sloppiness ?? sloppiness,
-          fontFamily: selected.fontFamily || fontFamily,
-          fontSize: selected.fs || fontSize,
-          textAlign: selected.textAlign || textAlign,
-          opacity: selected.opacity ?? opacity,
-        };
-      }
+      prevPropsRef.current = {
+        color, backgroundColor, fillStyle, brushSize, strokeStyle, sloppiness, fontFamily, fontSize, textAlign, opacity
+      };
+      return;
     }
+
+    if (!selIdRef.current) return;
 
     const prevP = prevPropsRef.current;
     const changed = {};
