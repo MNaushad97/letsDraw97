@@ -1050,81 +1050,35 @@ const Canvas = forwardRef(function Canvas(
       worldX,
       worldY,
       value: initialVal,
-      fs: existingShape?.fs || fsRef.current || 22,
-      color: existingShape?.color || colorRef.current,
-      fontFamily: existingShape?.fontFamily || fontRef.current || 'caveat',
-      textAlign: existingShape?.textAlign || alignRef.current || 'left',
+      // Capture current rendering properties at open time
+      fs: existingShape?.fs ?? fsRef.current ?? 22,
+      color: existingShape?.color ?? colorRef.current,
+      fontFamily: existingShape?.fontFamily ?? fontRef.current ?? 'hand',
+      textAlign: existingShape?.textAlign ?? alignRef.current ?? 'left',
       opacity: existingShape?.opacity ?? opRef.current ?? 100,
     });
   }, []);
 
-  // Realtime keystroke sync to teammates
-  const handleLiveTextSync = useCallback((val) => {
-    const ts = textStateRef.current;
-    if (!ts) return;
-
-    if (ts.shapeId) {
-      // Existing text shape: update shape text and emit shape-updated immediately
-      setShapes(prev => {
-        const next = prev.map(s => {
-          if (s.id !== ts.shapeId) return s;
-          return { ...s, text: val };
-        });
-        const updated = next.find(s => s.id === ts.shapeId);
-        if (updated) onShapeUpdated?.(updated);
-        return next;
-      });
-    } else if (val.trim()) {
-      // Brand new text: create shape on first typed character so teammate sees it live!
-      const newId = uid();
-      const newShape = {
-        id: newId,
-        type: 'text',
-        x: ts.worldX,
-        y: ts.worldY,
-        text: val,
-        fs: ts.fs || fsRef.current || 22,
-        color: ts.color || colorRef.current,
-        sz: szRef.current,
-        opacity: ts.opacity ?? opRef.current ?? 100,
-        fontFamily: ts.fontFamily || fontRef.current || 'caveat',
-        textAlign: ts.textAlign || alignRef.current || 'left',
-        seed: Math.floor(Math.random() * 100000),
-      };
-      setTextState(prev => prev ? { ...prev, shapeId: newId, value: val } : prev);
-      setShapes(prev => [...prev, newShape]);
-      onShapeAdded?.(newShape);
-    }
-  }, [onShapeAdded, onShapeUpdated]);
-
   const commitText = useCallback(() => {
     const ts = textStateRef.current;
     setTextState(null);
-    if (!ts) return;
-
-    if (!ts.value.trim()) {
-      // If empty on commit, remove the shape if it was created
-      if (ts.shapeId) {
-        setShapes(prev => prev.filter(s => s.id !== ts.shapeId));
-        onShapeDeleted?.(ts.shapeId);
-        setSelId(null);
-      }
+    if (!ts || !ts.value.trim()) {
       onToolChange?.('select');
       return;
     }
 
     pushHist();
+
     if (ts.shapeId) {
+      // Editing an existing text shape — update it in place
       setShapes(prev => {
         const next = prev.map(s => {
           if (s.id !== ts.shapeId) return s;
           return {
             ...s,
             text: ts.value,
-            fs: s.fs || ts.fs || fsRef.current,
-            fontFamily: s.fontFamily || ts.fontFamily || fontRef.current,
-            textAlign: s.textAlign || ts.textAlign || alignRef.current,
-            color: s.color || ts.color || colorRef.current,
+            // Preserve existing fs/fontFamily/textAlign — don't override with refs
+            // (those only apply to *new* shapes)
           };
         });
         const finalShape = next.find(s => s.id === ts.shapeId);
@@ -1133,6 +1087,7 @@ const Canvas = forwardRef(function Canvas(
       });
       setSelId(ts.shapeId);
     } else {
+      // Brand new text shape
       const newId = uid();
       const shape = {
         id: newId,
@@ -1140,12 +1095,12 @@ const Canvas = forwardRef(function Canvas(
         x: ts.worldX,
         y: ts.worldY,
         text: ts.value,
-        fs: ts.fs || fsRef.current || 22,
-        color: ts.color || colorRef.current,
+        fs: ts.fs ?? fsRef.current ?? 22,
+        color: ts.color ?? colorRef.current,
         sz: szRef.current,
         opacity: ts.opacity ?? opRef.current ?? 100,
-        fontFamily: ts.fontFamily || fontRef.current || 'caveat',
-        textAlign: ts.textAlign || alignRef.current || 'left',
+        fontFamily: ts.fontFamily ?? fontRef.current ?? 'hand',
+        textAlign: ts.textAlign ?? alignRef.current ?? 'left',
         seed: Math.floor(Math.random() * 100000),
       };
       setShapes(prev => [...prev, shape]);
@@ -1153,19 +1108,13 @@ const Canvas = forwardRef(function Canvas(
       onShapeAdded?.(shape);
     }
     onToolChange?.('select');
-  }, [pushHist, onToolChange, onShapeAdded, onShapeUpdated, onShapeDeleted]);
+  }, [pushHist, onToolChange, onShapeAdded, onShapeUpdated]);
 
-  // Auto-focus and auto-expand inline textarea on open
+  // Auto-focus when text editor opens, cursor to end
   useEffect(() => {
     if (textState && textRef.current) {
       const el = textRef.current;
       el.focus();
-      const scale = zoomRef.current / 100;
-      const fsPx = Math.max((textState.fs || 22) * scale, 12);
-      el.style.height = 'auto';
-      el.style.height = `${Math.max(el.scrollHeight, fsPx * 1.35)}px`;
-      el.style.width = 'auto';
-      el.style.width = `${Math.max(el.scrollWidth + 12, 80)}px`;
       el.selectionStart = el.selectionEnd = el.value.length;
     }
   }, [textState]);
@@ -1599,10 +1548,10 @@ const Canvas = forwardRef(function Canvas(
       />
 
       {textState && (() => {
-        const scale = zoom / 100;
-        const left  = textState.worldX * scale + pan.x;
-        const top   = textState.worldY * scale + pan.y;
-        const fsPx  = Math.max(textState.fs * scale, 12);
+        const scale   = zoom / 100;
+        const left    = textState.worldX * scale + pan.x;
+        const top     = textState.worldY * scale + pan.y;
+        const fsPx    = Math.max((textState.fs || 22) * scale, 12);
 
         let fontFamCss = "'Caveat', 'Kalam', cursive";
         if (textState.fontFamily === 'sans')  fontFamCss = "Inter, system-ui, sans-serif";
@@ -1614,18 +1563,18 @@ const Canvas = forwardRef(function Canvas(
             ref={textRef}
             id="canvas-text-input"
             value={textState.value}
-            placeholder="Type text..."
-            autoFocus
+            placeholder="Type here..."
             onChange={e => {
               const v = e.target.value;
               setTextState(prev => prev ? { ...prev, value: v } : prev);
-              if (textRef.current) {
-                textRef.current.style.height = 'auto';
-                textRef.current.style.height = `${Math.max(textRef.current.scrollHeight, fsPx * 1.35)}px`;
-                textRef.current.style.width = 'auto';
-                textRef.current.style.width = `${Math.max(textRef.current.scrollWidth + 12, 80)}px`;
+              // Auto-expand
+              const el = textRef.current;
+              if (el) {
+                el.style.height = 'auto';
+                el.style.height = `${Math.max(el.scrollHeight, fsPx * 1.6)}px`;
+                el.style.width  = 'auto';
+                el.style.width  = `${Math.max(el.scrollWidth + 20, 120)}px`;
               }
-              handleLiveTextSync(v);
             }}
             onKeyDown={e => {
               e.stopPropagation();
@@ -1638,25 +1587,24 @@ const Canvas = forwardRef(function Canvas(
               position: 'absolute',
               left: `${left}px`,
               top:  `${top}px`,
-              minWidth: 80,
-              minHeight: `${fsPx * 1.35}px`,
-              padding: '0 2px',
+              minWidth: 120,
+              minHeight: `${fsPx * 1.6}px`,
+              padding: '2px 6px',
               margin: 0,
-              font: `600 ${fsPx}px ${fontFamCss}`,
+              font: `600 ${fsPx}px/${1.35} ${fontFamCss}`,
               textAlign: textState.textAlign || 'left',
-              lineHeight: 1.35,
               color: textState.color || colorRef.current,
               caretColor: textState.color || colorRef.current,
-              background: 'transparent',
-              border: '1.5px dashed rgba(108, 99, 255, 0.75)',
+              background: 'rgba(255,255,255,0.08)',
+              border: '1.5px dashed rgba(108,99,255,0.75)',
               borderRadius: 4,
               outline: 'none',
               resize: 'none',
               zIndex: 600,
-              whiteSpace: 'pre-wrap',
-              wordBreak: 'break-word',
+              whiteSpace: 'pre',
               overflow: 'hidden',
               boxSizing: 'content-box',
+              backdropFilter: 'blur(2px)',
             }}
           />
         );
