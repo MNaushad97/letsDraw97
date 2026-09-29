@@ -714,6 +714,7 @@ const Canvas = forwardRef(function Canvas(
         if (s.id !== selIdRef.current) return s;
         return { ...s, ...changed };
       });
+      shapesRef.current = next;
       const updated = next.find(s => s.id === selIdRef.current);
       if (updated) onShapeUpdated?.(updated);
       return next;
@@ -922,6 +923,13 @@ const Canvas = forwardRef(function Canvas(
       shapesRef.current = safe;
       setShapes(safe);
       setSelId(null);
+    },
+    // Multiplayer: sync full shape list from peer (undo/redo/erase sync)
+    syncPeerFullCanvas(incoming) {
+      const safe = Array.isArray(incoming) ? incoming : [];
+      shapesRef.current = safe;
+      setShapes(safe);
+      setSelId(prev => (prev && safe.some(s => s.id === prev) ? prev : null));
     },
     // Multiplayer: add brand-new peer shapes
     mergePeerShapes(incoming) {
@@ -1429,7 +1437,11 @@ const Canvas = forwardRef(function Canvas(
         onToolChange?.('select');
         return;
       }
-      setShapes(prev => [...prev, shape]);
+      setShapes(prev => {
+        const next = [...prev, shape];
+        shapesRef.current = next;
+        return next;
+      });
       onShapeAdded?.(shape);
       return;
     }
@@ -1442,7 +1454,11 @@ const Canvas = forwardRef(function Canvas(
       return;
     }
 
-    setShapes(prev => [...prev, shape]);
+    setShapes(prev => {
+      const next = [...prev, shape];
+      shapesRef.current = next;
+      return next;
+    });
     onShapeAdded?.(shape);
   }, [onToolChange, onShapeAdded, onShapeUpdated, flushEraseSync]);
 

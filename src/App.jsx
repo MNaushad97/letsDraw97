@@ -203,7 +203,11 @@ export default function App() {
   }, []);
 
   const handlePeerCanvasFullSync = useCallback((shapes) => {
-    canvasRef.current?.loadShapes?.(shapes);
+    if (canvasRef.current?.syncPeerFullCanvas) {
+      canvasRef.current.syncPeerFullCanvas(shapes);
+    } else {
+      canvasRef.current?.loadShapes?.(shapes);
+    }
   }, []);
 
   const handleInitialShapes = useCallback((shapes) => {
