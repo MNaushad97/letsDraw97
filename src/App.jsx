@@ -8,8 +8,9 @@ import Toolbar, { TOOL_KEY_MAP } from './components/Toolbar.jsx';
 import PropertiesPanel from './components/PropertiesPanel.jsx';
 import RoomLobby from './components/RoomLobby.jsx';
 import PeerCursors from './components/PeerCursors.jsx';
-import PresencePanel from './components/PresencePanel.jsx';
+import RoomPanel from './components/RoomPanel.jsx';
 import { useMultiplayer, checkRoom } from './hooks/useMultiplayer.js';
+import { useWebRTCMesh } from './hooks/useWebRTCMesh.js';
 import { generateRandomName, getNextPeerColor } from './lib/randomNames.js';
 import './index.css';
 
@@ -218,7 +219,20 @@ export default function App() {
     canvasRef.current?.loadShapes?.(shapes);
   }, []);
 
+  const handleRoomFull = useCallback((message) => {
+    showToast(message || 'Room is full! Maximum 4 people allowed.');
+    setMultiplayerEnabled(false);
+    setShowLobby(true);
+    setRoomId(null);
+    
+    // Clear the room from the URL
+    const url = new URL(window.location.href);
+    url.searchParams.delete('room');
+    window.history.replaceState({}, '', url.toString());
+  }, [showToast]);
+
   const {
+    socket,
     isConnected,
     peers,
     emitCursorMove,
@@ -228,6 +242,7 @@ export default function App() {
     emitCanvasCleared,
     emitShapesReordered,
     emitCanvasFullSync,
+    emitMediaState,
   } = useMultiplayer({
     roomId,
     userId,
@@ -240,7 +255,16 @@ export default function App() {
     onPeerShapesReordered:   handlePeerShapesReordered,
     onPeerCanvasFullSync:     handlePeerCanvasFullSync,
     onInitialShapes:         handleInitialShapes,
+    onRoomFull:              handleRoomFull,
   });
+
+  // ── WebRTC Mesh Integration ──────────────────────────────────────
+  const { localStream, remoteStreams, toggleAudio, toggleVideo, requestMedia } = useWebRTCMesh(
+    multiplayerEnabled ? socket : null,
+    roomId,
+    userId,
+    userName
+  );
 
   // Sync pan/zoom for cursor coordinate conversion
   const handlePanChange = useCallback((newPan) => {
@@ -347,14 +371,21 @@ export default function App() {
       {/* Top Toolbar */}
       <Toolbar activeTool={tool} onChange={setTool} />
 
-      {/* Presence Panel (only in multiplayer mode) */}
+      {/* Unified Room Panel (only in multiplayer mode) */}
       {multiplayerEnabled && roomId && (
-        <PresencePanel
+        <RoomPanel
           peers={peers}
           myName={userName}
           myColor={myColor}
           isConnected={isConnected}
           roomId={roomId}
+          localStream={localStream}
+          remoteStreams={remoteStreams}
+          userName={userName}
+          toggleAudio={toggleAudio}
+          toggleVideo={toggleVideo}
+          requestMedia={requestMedia}
+          emitMediaState={emitMediaState}
         />
       )}
 

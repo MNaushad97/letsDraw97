@@ -130,8 +130,15 @@ io.on('connection', (socket) => {
     currentRoomId = roomId;
     currentUserId = userId;
 
-    socket.join(roomId);
     const room = getRoom(roomId);
+
+    // ── Enforce 4-person limit for P2P Mesh ──
+    if (Object.keys(room.peers).length >= 4) {
+      socket.emit('room-full', { message: 'Room is full. Maximum 4 people allowed for optimal performance.' });
+      return;
+    }
+
+    socket.join(roomId);
 
     // Load from Firebase if room is fresh (no in-memory state yet)
     if (room.shapes.length === 0 && db) {
@@ -146,13 +153,18 @@ io.on('connection', (socket) => {
       }).catch(e => console.error('createdAt write error:', e.message));
     }
 
-    // Register peer
-    room.peers[socket.id] = { userId, name };
+    // Register peer with media state
+    room.peers[socket.id] = { userId, name, audioOn: false, videoOn: false };
 
     // Send full room state to the new joiner
     const existingPeers = {};
     Object.entries(room.peers).forEach(([sid, peer]) => {
-      if (sid !== socket.id) existingPeers[peer.userId] = { name: peer.name };
+      if (sid !== socket.id) existingPeers[peer.userId] = { 
+        name: peer.name, 
+        socketId: sid,
+        audioOn: peer.audioOn || false,
+        videoOn: peer.videoOn || false
+      };
     });
 
     socket.emit('room-init', {
@@ -161,7 +173,13 @@ io.on('connection', (socket) => {
     });
 
     // Notify existing peers about new joiner
-    socket.to(roomId).emit('peer-joined', { userId, name });
+    socket.to(roomId).emit('peer-joined', { 
+      userId, 
+      name, 
+      socketId: socket.id,
+      audioOn: false,
+      videoOn: false
+    });
 
     console.log(`👤 ${name} (${userId}) joined room: ${roomId} — ${Object.keys(room.peers).length} users online`);
   });
@@ -225,6 +243,43 @@ io.on('connection', (socket) => {
     if (db) db.ref(`rooms/${roomId}/shapes`).remove();
   });
 
+  // ── WEBRTC SIGNALING (The Matchmaker) ──────────────────────────
+  // Relays SDP offers, answers, and ICE candidates between specific peers.
+  socket.on('webrtc-offer', ({ targetSocketId, offer, callerName, userId }) => {
+    console.log(`📞 WebRTC OFFER: ${socket.id} → ${targetSocketId} (caller: ${callerName})`);
+    socket.to(targetSocketId).emit('webrtc-offer', {
+      offer,
+      callerSocketId: socket.id,
+      callerName,
+      userId
+    });
+  });
+
+  socket.on('webrtc-answer', ({ targetSocketId, answer }) => {
+    console.log(`📞 WebRTC ANSWER: ${socket.id} → ${targetSocketId}`);
+    socket.to(targetSocketId).emit('webrtc-answer', {
+      answer,
+      answererSocketId: socket.id,
+    });
+  });
+
+  socket.on('webrtc-ice-candidate', ({ targetSocketId, candidate }) => {
+    console.log(`🧊 ICE: ${socket.id} → ${targetSocketId}`);
+    socket.to(targetSocketId).emit('webrtc-ice-candidate', {
+      candidate,
+      senderSocketId: socket.id,
+    });
+  });
+
+  socket.on('webrtc-media-state', ({ roomId, audioOn, videoOn, userId }) => {
+    const room = rooms[roomId];
+    if (room && room.peers[socket.id]) {
+      room.peers[socket.id].audioOn = audioOn;
+      room.peers[socket.id].videoOn = videoOn;
+    }
+    socket.to(roomId).emit('peer-media-state', { userId, socketId: socket.id, audioOn, videoOn });
+  });
+
   // ── DISCONNECT ─────────────────────────────────────────────────
   socket.on('disconnect', () => {
     if (!currentRoomId) return;
@@ -235,7 +290,7 @@ io.on('connection', (socket) => {
     delete room.peers[socket.id];
 
     if (peer) {
-      io.to(currentRoomId).emit('peer-left', { userId: currentUserId });
+      io.to(currentRoomId).emit('peer-left', { userId: currentUserId, socketId: socket.id });
       console.log(`👋 ${peer.name} left room: ${currentRoomId} — ${Object.keys(room.peers).length} users remaining`);
     }
 

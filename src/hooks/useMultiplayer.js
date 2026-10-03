@@ -65,8 +65,10 @@ export function useMultiplayer({
   onPeerShapesReordered,
   onPeerCanvasFullSync,
   onInitialShapes,
+  onRoomFull,
 }) {
   const socketRef       = useRef(null);
+  const [socket, setSocket]           = useState(null);
   const [peers, setPeers]             = useState({});
   const [isConnected, setIsConnected] = useState(false);
   const peerColorsRef = useRef({});
@@ -79,6 +81,8 @@ export function useMultiplayer({
   const cbReordered  = useRef(onPeerShapesReordered);
   const cbFullSync   = useRef(onPeerCanvasFullSync);
   const cbInitial   = useRef(onInitialShapes);
+  const cbRoomFull  = useRef(onRoomFull);
+
   useEffect(() => { cbAdded.current   = onPeerShapeAdded;   }, [onPeerShapeAdded]);
   useEffect(() => { cbUpdated.current = onPeerShapeUpdated; }, [onPeerShapeUpdated]);
   useEffect(() => { cbDeleted.current = onPeerShapeDeleted; }, [onPeerShapeDeleted]);
@@ -86,6 +90,7 @@ export function useMultiplayer({
   useEffect(() => { cbReordered.current = onPeerShapesReordered;}, [onPeerShapesReordered]);
   useEffect(() => { cbFullSync.current  = onPeerCanvasFullSync; }, [onPeerCanvasFullSync]);
   useEffect(() => { cbInitial.current  = onInitialShapes;    }, [onInitialShapes]);
+  useEffect(() => { cbRoomFull.current = onRoomFull;         }, [onRoomFull]);
 
   const getPeerColor = useCallback((id) => {
     if (!peerColorsRef.current[id]) {
@@ -103,6 +108,7 @@ export function useMultiplayer({
       reconnectionDelay: 1000,
     });
     socketRef.current = socket;
+    setSocket(socket);
 
     socket.on('connect', () => {
       setIsConnected(true);
@@ -110,6 +116,12 @@ export function useMultiplayer({
     });
 
     socket.on('disconnect', () => setIsConnected(false));
+
+    socket.on('room-full', ({ message }) => {
+      cbRoomFull.current?.(message);
+      socket.disconnect();
+      setIsConnected(false);
+    });
 
     // ── Room init: load existing shapes + existing peers ──────────
     socket.on('room-init', ({ shapes, peers: existingPeers }) => {
@@ -120,16 +132,32 @@ export function useMultiplayer({
       // Populate peers map
       const coloredPeers = {};
       Object.entries(existingPeers || {}).forEach(([id, peer]) => {
-        coloredPeers[id] = { ...peer, color: getPeerColor(id), x: -9999, y: -9999 };
+        coloredPeers[id] = {
+          name: peer.name,
+          socketId: peer.socketId,
+          audioOn: peer.audioOn || false,
+          videoOn: peer.videoOn || false,
+          color: getPeerColor(id),
+          x: -9999,
+          y: -9999
+        };
       });
       setPeers(coloredPeers);
     });
 
     // ── Peer joins / leaves ───────────────────────────────────────
-    socket.on('peer-joined', ({ userId: id, name }) => {
+    socket.on('peer-joined', ({ userId: id, name, socketId, audioOn, videoOn }) => {
       setPeers(prev => ({
         ...prev,
-        [id]: { name, color: getPeerColor(id), x: -9999, y: -9999 },
+        [id]: { 
+          name, 
+          socketId, 
+          audioOn: audioOn || false, 
+          videoOn: videoOn || false, 
+          color: getPeerColor(id), 
+          x: -9999, 
+          y: -9999 
+        },
       }));
     });
 
@@ -149,6 +177,27 @@ export function useMultiplayer({
       }));
     });
 
+    // ── Media State ───────────────────────────────────────────────
+    socket.on('peer-media-state', ({ userId: id, socketId: sid, audioOn, videoOn }) => {
+      setPeers(prev => {
+        if (prev[id]) {
+          return {
+            ...prev,
+            [id]: { ...prev[id], audioOn, videoOn, socketId: sid || prev[id].socketId },
+          };
+        }
+        // Fallback search by socketId if id doesn't match
+        const foundEntry = Object.entries(prev).find(([_, p]) => p.socketId === sid);
+        if (foundEntry) {
+          return {
+            ...prev,
+            [foundEntry[0]]: { ...foundEntry[1], audioOn, videoOn },
+          };
+        }
+        return prev;
+      });
+    });
+
     // ── Shape events: call canvas ref directly ────────────────────
     socket.on('peer-shape-added',   ({ shape })   => cbAdded.current?.(shape));
     socket.on('peer-shape-updated', ({ shape })   => cbUpdated.current?.(shape));
@@ -160,6 +209,7 @@ export function useMultiplayer({
     return () => {
       socket.disconnect();
       socketRef.current = null;
+      setSocket(null);
       setIsConnected(false);
       setPeers({});
     };
@@ -185,7 +235,12 @@ export function useMultiplayer({
   const emitShapesReordered  = useCallback((shapes) => socketRef.current?.emit('shapes-reordered',  { roomId, shapes }), [roomId]);
   const emitCanvasFullSync   = useCallback((shapes) => socketRef.current?.emit('canvas-full-sync',   { roomId, shapes }), [roomId]);
 
+  const emitMediaState = useCallback((audioOn, videoOn) => {
+    socketRef.current?.emit('webrtc-media-state', { roomId, userId, audioOn, videoOn });
+  }, [roomId, userId]);
+
   return {
+    socket,
     isConnected,
     peers,
     emitCursorMove,
@@ -195,5 +250,6 @@ export function useMultiplayer({
     emitCanvasCleared,
     emitShapesReordered,
     emitCanvasFullSync,
+    emitMediaState,
   };
 }

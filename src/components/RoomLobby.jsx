@@ -96,15 +96,12 @@ export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId 
         boxShadow: '0 24px 80px rgba(0,0,0,0.15)',
         position: 'relative', zIndex: 1,
       }}>
-        {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+        {/* Logo & Title */}
+        <div style={{ textAlign: 'center', marginBottom: 24 }}>
           <div style={{ fontSize: 32, marginBottom: 6 }}>✏️</div>
-          <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: 'var(--text-primary, #1e1e1e)', letterSpacing: -0.5 }}>
-            letsDraw97
+          <h1 style={{ margin: 0, fontSize: 24, fontWeight: 800, color: 'var(--text-primary, #1e1e1e)', letterSpacing: -0.5 }}>
+            Select Room
           </h1>
-          <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary, #888)' }}>
-            Collaborative whiteboard. Draw together in real-time.
-          </p>
         </div>
 
         {/* Name Field */}
@@ -143,23 +140,30 @@ export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId 
 
         {/* Mode Selector */}
         {!mode && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {error && (
               <div style={errorBoxStyle}>{error}</div>
             )}
-            <button onClick={handleStartCreate} style={primaryBtnStyle('#6c63ff')}>
-              <Users size={16} /> Create a New Room
-            </button>
-            <button onClick={() => { setMode('join'); setError(''); }} style={primaryBtnStyle('#1abc9c')}>
-              <LogIn size={16} /> Join Existing Room
-            </button>
+            
+            {/* First Row: Create and Join */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <button onClick={handleStartCreate} style={{ ...primaryBtnStyle('#6c63ff'), padding: '12px 10px' }}>
+                <Users size={16} /> Create New
+              </button>
+              <button onClick={() => { setMode('join'); setError(''); }} style={{ ...primaryBtnStyle('#1abc9c'), padding: '12px 10px' }}>
+                <LogIn size={16} /> Join Existing
+              </button>
+            </div>
+
             <div style={dividerStyle}>
               <div style={{ flex: 1, height: 1, background: 'var(--border, #eee)' }} />
               <span style={{ fontSize: 11, color: 'var(--text-secondary, #aaa)' }}>or</span>
               <div style={{ flex: 1, height: 1, background: 'var(--border, #eee)' }} />
             </div>
+
+            {/* Last Row: Try Blank Canvas */}
             <button onClick={onSolo} style={ghostBtnStyle}>
-              <Pencil size={14} /> Continue Solo (No Room)
+              <Pencil size={14} /> Try Blank Canvas
             </button>
           </div>
         )}
@@ -171,10 +175,12 @@ export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId 
             <p style={{ margin: 0, fontSize: 13, color: 'var(--text-secondary, #888)', textAlign: 'center' }}>
               A unique Room ID will be generated.<br />Share the invite link with teammates!
             </p>
-            <button onClick={handleCreate} style={primaryBtnStyle('#6c63ff')}>
-              <ArrowRight size={16} /> Create & Enter Room
-            </button>
-            <button onClick={() => setMode(null)} style={ghostBtnStyle}>← Back</button>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+              <button onClick={() => setMode(null)} style={{ ...ghostBtnStyle, padding: '12px 10px' }}>← Back</button>
+              <button onClick={handleCreate} style={{ ...primaryBtnStyle('#6c63ff'), padding: '12px 10px' }}>
+                <ArrowRight size={16} /> Create & Enter
+              </button>
+            </div>
           </div>
         )}
 
@@ -198,19 +204,21 @@ export default function RoomLobby({ onJoin, onSolo, prefillError, prefillRoomId 
               />
             )}
             {error && <div style={errorBoxStyle}>{error}</div>}
-            <button
-              onClick={handleJoin}
-              disabled={loading}
-              style={{ ...primaryBtnStyle('#1abc9c'), opacity: loading ? 0.7 : 1 }}
-            >
-              {loading
-                ? <><Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} /> Checking room…</>
-                : <><LogIn size={16} /> Join Room</>
-              }
-            </button>
-            {!prefillRoomId && (
-              <button onClick={() => { setMode(null); setError(''); }} style={ghostBtnStyle}>← Back</button>
-            )}
+            <div style={{ display: 'grid', gridTemplateColumns: !prefillRoomId ? '1fr 1fr' : '1fr', gap: 10 }}>
+              {!prefillRoomId && (
+                <button onClick={() => { setMode(null); setError(''); }} style={{ ...ghostBtnStyle, padding: '12px 10px' }}>← Back</button>
+              )}
+              <button
+                onClick={handleJoin}
+                disabled={loading}
+                style={{ ...primaryBtnStyle('#1abc9c'), opacity: loading ? 0.7 : 1, padding: '12px 10px' }}
+              >
+                {loading
+                  ? <><Loader2 size={15} style={{ animation: 'spin 0.8s linear infinite' }} /> Checking…</>
+                  : <><LogIn size={16} /> Join Room</>
+                }
+              </button>
+            </div>
           </div>
         )}
       </div>

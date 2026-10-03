@@ -204,7 +204,7 @@ export default function PropertiesPanel({
   opacity,          onOpacityChange,
   onLayerChange,
 }) {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isCollapsed, setIsCollapsed] = useState(() => window.innerWidth <= 768);
   const currentType = selectedShape?.type || activeTool;
   const isTextMode  = currentType === 'text';
 
