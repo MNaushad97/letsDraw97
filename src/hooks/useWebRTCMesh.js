@@ -104,20 +104,32 @@ export const useWebRTCMesh = (socket, roomId, userId, userName) => {
     // Received their media stream
     pc.ontrack = (event) => {
       console.log(`[WebRTC] ✅ ontrack from ${targetName}! kind: ${event.track?.kind}, streams:`, event.streams?.length);
-      const mediaStream = (event.streams && event.streams[0]) ? event.streams[0] : new MediaStream();
-      if (event.track && !mediaStream.getTracks().some(t => t.id === event.track.id)) {
-        mediaStream.addTrack(event.track);
-      }
-      
+
       setRemoteStreams(prev => {
         const existing = prev.find(s => s.socketId === targetSocketId);
-        if (existing) {
-          if (existing.stream && event.track && !existing.stream.getTracks().some(t => t.id === event.track.id)) {
-            existing.stream.addTrack(event.track);
+
+        if (existing && existing.stream) {
+          // Build a brand-new MediaStream with all current tracks + this new one.
+          // Using addTrack() alone mutates the object without changing its reference,
+          // so React won't re-render. A new MediaStream guarantees a fresh reference.
+          const allTracks = existing.stream.getTracks();
+          if (event.track && !allTracks.some(t => t.id === event.track.id)) {
+            allTracks.push(event.track);
           }
-          return prev.map(s => s.socketId === targetSocketId ? { ...s, stream: existing.stream || mediaStream, name: targetName } : s);
+          const freshStream = new MediaStream(allTracks);
+          return prev.map(s =>
+            s.socketId === targetSocketId
+              ? { ...s, stream: freshStream, name: targetName }
+              : s
+          );
         }
-        return [...prev, { socketId: targetSocketId, stream: mediaStream, name: targetName }];
+
+        // First track from this peer — create a new stream entry
+        const incomingStream = event.streams?.[0] || new MediaStream();
+        if (event.track && !incomingStream.getTracks().some(t => t.id === event.track.id)) {
+          incomingStream.addTrack(event.track);
+        }
+        return [...prev, { socketId: targetSocketId, stream: incomingStream, name: targetName }];
       });
     };
 

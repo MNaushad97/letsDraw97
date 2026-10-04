@@ -2,31 +2,31 @@
  * RoomPanel — Unified Presence + Video panel
  * Inspired by the user's sketch.
  */
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
   Link2, Copy, Check, Mic, MicOff, Video, VideoOff, Maximize2, Minimize2, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 /* ── Individual User Block (Video ON or OFF) ─────────────────────── */
 const UserBlock = ({ stream, name, color, isLocal, audioOn, videoOn, toggleAudio, toggleVideo }) => {
-  const videoRef = useRef(null);
-
   // We consider video live if stream exists and videoOn flag is true
   const isVideoLive = Boolean(stream && videoOn);
 
-  useEffect(() => {
-    if (videoRef.current && stream && isVideoLive) {
-      videoRef.current.srcObject = stream;
-      videoRef.current.play().catch(() => {});
+  // Callback ref: fires every time the <video> element mounts (including after
+  // a collapse→expand cycle), guaranteeing srcObject is always attached.
+  const videoCallbackRef = useCallback((node) => {
+    if (node && stream) {
+      node.srcObject = stream;
+      node.play().catch(() => {});
     }
-  }, [stream, isVideoLive]);
+  }, [stream]); // re-runs if stream object identity changes
 
   return (
     <div className={`rp-user-block ${isVideoLive ? 'video-on' : 'video-off'}`}>
       {isVideoLive && (
         <video 
           className="rp-video-bg" 
-          ref={videoRef} 
+          ref={videoCallbackRef}
           autoPlay 
           playsInline 
           muted={isLocal} 
@@ -93,6 +93,20 @@ export default function RoomPanel({
   // Expanded by default for all screens
   const [collapsed, setCollapsed] = useState(false);
   const [minimized, setMinimized] = useState(false);
+
+  // Sync local audio/video state with actual track states whenever localStream changes
+  useEffect(() => {
+    if (localStream) {
+      const audioTrack = localStream.getAudioTracks()[0];
+      const videoTrack = localStream.getVideoTracks()[0];
+      const aOn = audioTrack ? audioTrack.enabled : false;
+      const vOn = videoTrack ? (videoTrack.enabled && videoTrack.readyState === 'live') : false;
+      setLocalAudioOn(aOn);
+      setLocalVideoOn(vOn);
+      // Broadcast our initial state to peers so they know our camera is on
+      emitMediaState?.(aOn, vOn);
+    }
+  }, [localStream]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter only active online peers with valid socketId and name
   const onlinePeers = Object.entries(peers || {}).filter(([_, peer]) => {
@@ -199,9 +213,14 @@ export default function RoomPanel({
           
           {/* Remote Users (Online only) */}
           {onlinePeers.map(([id, peer]) => {
-            const rStream = remoteStreams.find(s => s.socketId === peer.socketId || s.name === peer.name)?.stream;
+            const remoteEntry = remoteStreams.find(s => s.socketId === peer.socketId || s.name === peer.name);
+            const rStream = remoteEntry?.stream;
             const rAudio = peer.audioOn || false;
-            const rVideo = peer.videoOn || false; 
+            // Show video if peer explicitly has videoOn=true OR if the stream
+            // has an active video track (catches the race where peer joined
+            // with camera on before emitting media-state)
+            const hasLiveVideoTrack = rStream?.getVideoTracks?.().some(t => t.readyState === 'live' && t.enabled);
+            const rVideo = peer.videoOn || hasLiveVideoTrack || false;
             return (
               <UserBlock 
                 key={id}
