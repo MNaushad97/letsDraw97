@@ -16,9 +16,15 @@ export const useWebRTCMesh = (socket, roomId, userId, userName) => {
   // without triggering effect re-runs
   const peersRef       = useRef(new Map()); // socketId → RTCPeerConnection
   const localStreamRef = useRef(null);
+  // Stable refs for userName/userId — needed inside createPC callbacks
+  // without causing the whole PC map to be rebuilt on every render
+  const userNameRef    = useRef(userName);
+  const userIdRef      = useRef(userId);
 
-  // Keep ref in sync
+  // Keep refs in sync
   useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
+  useEffect(() => { userNameRef.current = userName; }, [userName]);
+  useEffect(() => { userIdRef.current = userId; }, [userId]);
 
   // Fetch Cloudflare TURN credentials from server (with direct Cloudflare API fallback)
   useEffect(() => {
@@ -140,7 +146,24 @@ export const useWebRTCMesh = (socket, roomId, userId, userName) => {
     };
 
     pc.oniceconnectionstatechange = () => {
-      console.log(`[WebRTC] ICE state → ${targetName}: ${pc.iceConnectionState}`);
+      const state = pc.iceConnectionState;
+      console.log(`[WebRTC] ICE state → ${targetName}: ${state}`);
+
+      // Auto-restart ICE when connection fails (recovers frozen video/audio)
+      if (state === 'failed') {
+        console.log(`[WebRTC] ❄️ ICE failed for ${targetName} — restarting...`);
+        pc.createOffer({ iceRestart: true })
+          .then(offer => pc.setLocalDescription(offer))
+          .then(() => {
+            socket.emit('webrtc-offer', {
+              targetSocketId,
+              offer: pc.localDescription,
+              callerName: userNameRef.current,
+              userId: userIdRef.current,
+            });
+          })
+          .catch(e => console.warn('[WebRTC] ICE restart error:', e));
+      }
     };
 
     // Received their media stream

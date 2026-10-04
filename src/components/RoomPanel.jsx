@@ -9,30 +9,97 @@ import {
 
 /* ── Individual User Block (Video ON or OFF) ─────────────────────── */
 const UserBlock = ({ stream, name, color, isLocal, audioOn, videoOn, toggleAudio, toggleVideo }) => {
-  // We consider video live if stream exists and videoOn flag is true
   const isVideoLive = Boolean(stream && videoOn);
+  const [speaking, setSpeaking] = useState(false);
+  const audioCtxRef  = useRef(null);
+  const animFrameRef = useRef(null);
 
-  // Callback ref: fires every time the <video> element mounts (including after
-  // a collapse→expand cycle), guaranteeing srcObject is always attached.
+  // ── Audio level detection (speaking glow) ───────────────────────
+  useEffect(() => {
+    // Cleanup previous analyzer
+    setSpeaking(false);
+    cancelAnimationFrame(animFrameRef.current);
+    if (audioCtxRef.current) {
+      audioCtxRef.current.close().catch(() => {});
+      audioCtxRef.current = null;
+    }
+
+    if (!stream || !audioOn) return;
+    if (!stream.getAudioTracks().length) return;
+
+    let cancelled = false;
+
+    const setup = async () => {
+      try {
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        audioCtxRef.current = audioCtx;
+        const source   = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.5;
+        source.connect(analyser);
+        const data = new Uint8Array(analyser.frequencyBinCount);
+        let wasSpeaking = false;
+
+        const check = () => {
+          if (cancelled) return;
+          analyser.getByteFrequencyData(data);
+          // Focus on voice-frequency bins (lower portion)
+          const avg = data.slice(0, 40).reduce((a, b) => a + b, 0) / 40;
+          const isSpeaking = avg > 10;
+          // Only call setSpeaking when value actually changes → no excess re-renders
+          if (isSpeaking !== wasSpeaking) { wasSpeaking = isSpeaking; setSpeaking(isSpeaking); }
+          animFrameRef.current = requestAnimationFrame(check);
+        };
+        animFrameRef.current = requestAnimationFrame(check);
+      } catch (_) { /* AudioContext blocked by browser */ }
+    };
+
+    setup();
+
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(animFrameRef.current);
+      audioCtxRef.current?.close().catch(() => {});
+      audioCtxRef.current = null;
+    };
+  }, [stream, audioOn]);
+
+  // ── Callback ref: fires on every mount (collapse→expand fix) ────
   const videoCallbackRef = useCallback((node) => {
     if (node && stream) {
       node.srcObject = stream;
       node.play().catch(() => {});
     }
-  }, [stream]); // re-runs if stream object identity changes
+  }, [stream]);
 
   return (
     <div className={`rp-user-block ${isVideoLive ? 'video-on' : 'video-off'}`}>
-      {isVideoLive && (
-        <video 
-          className="rp-video-bg" 
+
+      {/* REMOTE: always keep <video> in DOM so audio keeps playing even when
+          the remote peer turns off their camera. Just hide it visually. */}
+      {!isLocal && stream && (
+        <video
+          className="rp-video-bg"
           ref={videoCallbackRef}
-          autoPlay 
-          playsInline 
-          muted={isLocal} 
+          autoPlay
+          playsInline
+          style={!isVideoLive ? { display: 'none' } : {}}
         />
       )}
-      
+
+      {/* LOCAL: only show when video is live — audio goes via WebRTC tracks,
+          not via a local video element, so no audio loss when video is off. */}
+      {isLocal && isVideoLive && (
+        <video
+          className="rp-video-bg"
+          ref={videoCallbackRef}
+          autoPlay
+          playsInline
+          muted
+        />
+      )}
+
       <div className="rp-user-info">
         <div className="rp-avatar" style={{ background: color }}>
           {(name || '?')[0].toUpperCase()}
@@ -44,7 +111,7 @@ const UserBlock = ({ stream, name, color, isLocal, audioOn, videoOn, toggleAudio
         <div className="rp-user-controls">
           <button
             type="button"
-            className={`rp-mini-btn ${!audioOn ? 'off' : ''}`}
+            className={`rp-mini-btn ${!audioOn ? 'off' : ''} ${audioOn && speaking ? 'speaking' : ''}`}
             onClick={toggleAudio}
             title={audioOn ? 'Mute microphone' : 'Unmute microphone'}
           >
@@ -62,7 +129,7 @@ const UserBlock = ({ stream, name, color, isLocal, audioOn, videoOn, toggleAudio
       ) : (
         <div className="rp-user-controls readonly">
           <div
-            className={`rp-mini-btn readonly ${!audioOn ? 'off' : ''}`}
+            className={`rp-mini-btn readonly ${!audioOn ? 'off' : ''} ${audioOn && speaking ? 'speaking' : ''}`}
             title={audioOn ? `${name}'s mic is on` : `${name} is muted`}
           >
             {audioOn ? <Mic size={14}/> : <MicOff size={14}/>}
