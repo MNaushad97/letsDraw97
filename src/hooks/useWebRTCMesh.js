@@ -20,15 +20,46 @@ export const useWebRTCMesh = (socket, roomId, userId, userName) => {
   // Keep ref in sync
   useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
 
-  // Fetch Cloudflare TURN credentials from server when socket connects
+  // Fetch Cloudflare TURN credentials from server (with direct Cloudflare API fallback)
   useEffect(() => {
     if (!socket) return;
-    socket.emit('get-ice-servers', (res) => {
+
+    const fallbackDirectFetch = async () => {
+      try {
+        const res = await fetch(
+          'https://rtc.live.cloudflare.com/v1/turn/keys/a95bdd487ddfd4c364d6e715cfc924a1/credentials/generate-ice-servers',
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': 'Bearer 09bfd7a4c9dfa69619edcd6e63c9079c490389272d954cb24d1b89333aae7c8e',
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ ttl: 86400 }),
+          }
+        );
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.iceServers) {
+            console.log('[WebRTC] Loaded Cloudflare TURN servers via Cloudflare API:', data.iceServers.length);
+            iceServersRef.current = data.iceServers;
+          }
+        }
+      } catch (e) {
+        console.warn('[WebRTC] Direct TURN fetch fallback failed:', e.message);
+      }
+    };
+
+    socket.emit('get-ice-servers', async (res) => {
       if (res && res.iceServers && res.iceServers.length > 0) {
         console.log('[WebRTC] Loaded Cloudflare TURN & STUN servers:', res.iceServers.length);
         iceServersRef.current = res.iceServers;
+      } else {
+        await fallbackDirectFetch();
       }
     });
+
+    // Also run fallback immediately in case socket response is delayed
+    fallbackDirectFetch();
   }, [socket]);
 
   // ── 1. Get local camera & mic (ON DEMAND) ──────────────────────
