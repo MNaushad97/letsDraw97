@@ -112,8 +112,17 @@ export default function RoomPanel({
   const onlinePeers = Object.entries(peers || {}).filter(([_, peer]) => {
     return peer && peer.name && peer.socketId;
   });
-
   const totalMembers = onlinePeers.length + 1; // local + remote peers
+
+  // When a NEW peer joins, re-broadcast our current media state so they
+  // immediately learn whether our camera/mic is on (fixes the race where
+  // a peer joins after we already have camera on, before any toggle event)
+  const peerCount = onlinePeers.length;
+  useEffect(() => {
+    if (localStream && peerCount > 0) {
+      emitMediaState?.(localAudioOn, localVideoOn);
+    }
+  }, [peerCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const copyRoomId = () => {
     navigator.clipboard.writeText(roomId).then(() => {
@@ -216,11 +225,9 @@ export default function RoomPanel({
             const remoteEntry = remoteStreams.find(s => s.socketId === peer.socketId || s.name === peer.name);
             const rStream = remoteEntry?.stream;
             const rAudio = peer.audioOn || false;
-            // Show video if peer explicitly has videoOn=true OR if the stream
-            // has an active video track (catches the race where peer joined
-            // with camera on before emitting media-state)
-            const hasLiveVideoTrack = rStream?.getVideoTracks?.().some(t => t.readyState === 'live' && t.enabled);
-            const rVideo = peer.videoOn || hasLiveVideoTrack || false;
+            // Use ONLY the signaled videoOn flag — do NOT inspect receiver-side
+            // track.enabled because it never reflects the sender's toggle state
+            const rVideo = peer.videoOn || false;
             return (
               <UserBlock 
                 key={id}
