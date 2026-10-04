@@ -15,6 +15,48 @@ const { Server }    = require('socket.io');
 const admin         = require('firebase-admin');
 const path          = require('path');
 
+// ── Cloudflare TURN Credentials Setup ────────────────────────────
+const CF_TURN_KEY_ID = process.env.CF_TURN_KEY_ID || 'a95bdd487ddfd4c364d6e715cfc924a1';
+const CF_TURN_API_TOKEN = process.env.CF_TURN_API_TOKEN || '09bfd7a4c9dfa69619edcd6e63c9079c490389272d954cb24d1b89333aae7c8e';
+
+let cachedIceServers = null;
+let cachedIceExpiry = 0;
+
+async function getCloudflareIceServers() {
+  const now = Date.now();
+  if (cachedIceServers && now < cachedIceExpiry) {
+    return cachedIceServers;
+  }
+  try {
+    const res = await fetch(
+      `https://rtc.live.cloudflare.com/v1/turn/keys/${CF_TURN_KEY_ID}/credentials/generate-ice-servers`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${CF_TURN_API_TOKEN}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ttl: 86400 }),
+      }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (data && data.iceServers) {
+      cachedIceServers = data.iceServers;
+      cachedIceExpiry = now + 12 * 3600 * 1000; // cache for 12 hours
+      console.log('✅ Cloudflare TURN credentials generated successfully');
+      return cachedIceServers;
+    }
+  } catch (err) {
+    console.warn('⚠️  Could not fetch Cloudflare TURN credentials, falling back to STUN:', err.message);
+  }
+  return [
+    { urls: 'stun:stun.l.google.com:19302' },
+    { urls: 'stun:stun1.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' }
+  ];
+}
+
 // ── Firebase Admin SDK Setup ────────────────────────────────────
 // Place your Firebase service account key JSON file at:
 //   server/serviceAccountKey.json
@@ -280,6 +322,15 @@ io.on('connection', (socket) => {
     socket.to(roomId).emit('peer-media-state', { userId, socketId: socket.id, audioOn, videoOn });
   });
 
+  socket.on('get-ice-servers', async (callback) => {
+    const iceServers = await getCloudflareIceServers();
+    if (typeof callback === 'function') {
+      callback({ iceServers });
+    } else {
+      socket.emit('ice-servers', { iceServers });
+    }
+  });
+
   // ── DISCONNECT ─────────────────────────────────────────────────
   socket.on('disconnect', () => {
     if (!currentRoomId) return;
@@ -302,7 +353,12 @@ io.on('connection', (socket) => {
   });
 });
 
-// ── Health Check Endpoint ────────────────────────────────────────
+// ── Health & ICE Endpoints ───────────────────────────────────────
+app.get('/api/ice-servers', async (_, res) => {
+  const iceServers = await getCloudflareIceServers();
+  res.json({ iceServers });
+});
+
 app.get('/health', (_, res) => {
   res.json({ status: 'ok', rooms: Object.keys(rooms).length, time: new Date().toISOString() });
 });

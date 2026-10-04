@@ -1,16 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// Free Google STUN Servers
-const ICE_SERVERS = {
-  iceServers: [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-  ],
-};
+// Default STUN + Cloudflare fallback
+const DEFAULT_ICE_SERVERS = [
+  { urls: 'stun:stun.l.google.com:19302' },
+  { urls: 'stun:stun1.l.google.com:19302' },
+  { urls: 'stun:stun.cloudflare.com:3478' },
+];
 
 export const useWebRTCMesh = (socket, roomId, userId, userName) => {
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState([]);
+  const iceServersRef = useRef(DEFAULT_ICE_SERVERS);
 
   // Use refs so signaling handlers always see latest values
   // without triggering effect re-runs
@@ -19,6 +19,17 @@ export const useWebRTCMesh = (socket, roomId, userId, userName) => {
 
   // Keep ref in sync
   useEffect(() => { localStreamRef.current = localStream; }, [localStream]);
+
+  // Fetch Cloudflare TURN credentials from server when socket connects
+  useEffect(() => {
+    if (!socket) return;
+    socket.emit('get-ice-servers', (res) => {
+      if (res && res.iceServers && res.iceServers.length > 0) {
+        console.log('[WebRTC] Loaded Cloudflare TURN & STUN servers:', res.iceServers.length);
+        iceServersRef.current = res.iceServers;
+      }
+    });
+  }, [socket]);
 
   // ── 1. Get local camera & mic (ON DEMAND) ──────────────────────
   const requestMedia = useCallback(async (withVideo, withAudio) => {
@@ -76,7 +87,7 @@ export const useWebRTCMesh = (socket, roomId, userId, userName) => {
       peersRef.current.delete(targetSocketId);
     }
 
-    const pc = new RTCPeerConnection(ICE_SERVERS);
+    const pc = new RTCPeerConnection({ iceServers: iceServersRef.current });
 
     // Attach our local tracks (camera/mic) if we have them
     const stream = localStreamRef.current;
