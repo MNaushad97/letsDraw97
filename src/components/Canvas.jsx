@@ -101,8 +101,8 @@ function getHandles(s) {
     });
   });
 
-  // Top-center Rotation handle (floating 24px above top border)
-  const rotY = y - pad - 24;
+  // Top-center Rotation handle (floating 26px above top border)
+  const rotY = y - pad - 26;
   handles.push({
     id: 'rotate',
     cursor: 'grab',
@@ -111,13 +111,13 @@ function getHandles(s) {
     y: rotY,
   });
 
-  // Top Delete handle (floating 22px above rotation circle)
+  // Top Delete handle (floating 36px above rotation circle)
   handles.push({
     id: 'delete',
     cursor: 'pointer',
     type: 'delete',
     x: x + w / 2,
-    y: rotY - 22,
+    y: rotY - 36,
   });
 
   // Specialized 3-Point handles for Line & Arrow
@@ -146,7 +146,7 @@ function hitHandle(px, py, s) {
   }
 
   for (const h of getHandles(s)) {
-    const r = h.type === 'delete' ? 12 : h.type === 'rotate' ? 10 : HANDLE_R + 4;
+    const r = h.type === 'delete' ? 16 : h.type === 'rotate' ? 15 : HANDLE_R + 4;
     if (Math.hypot(mx - h.x, my - h.y) <= r) return h;
   }
   return null;
@@ -518,18 +518,18 @@ function drawSelBox(ctx, s) {
 
   // Connecting stem to Top-Center Rotation handle & Delete handle
   const rotX = cx;
-  const rotY = bY - 24;
-  const delY = rotY - 22;
+  const rotY = bY - 26;
+  const delY = rotY - 36;
 
   ctx.beginPath();
   ctx.moveTo(cx, bY);
   ctx.lineTo(rotX, rotY);
   ctx.strokeStyle = '#6c63ff';
-  ctx.lineWidth = 1.2;
+  ctx.lineWidth = 1.4;
   ctx.stroke();
 
   // Rotation Handle (top-center circular button with rotate arrow icon)
-  const rotR = 9.5;
+  const rotR = 12;
   ctx.save();
   if (s.angle) {
     ctx.translate(rotX, rotY);
@@ -542,17 +542,17 @@ function drawSelBox(ctx, s) {
   ctx.fillStyle = '#ffffff';
   ctx.fill();
   ctx.strokeStyle = '#6c63ff';
-  ctx.lineWidth = 1.5;
+  ctx.lineWidth = 1.8;
   ctx.stroke();
 
   // Draw Rotate Arrow icon inside
   ctx.strokeStyle = '#6c63ff';
   ctx.fillStyle = '#6c63ff';
-  ctx.lineWidth = 1.3;
+  ctx.lineWidth = 1.6;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
-  const arcR = 4;
+  const arcR = 5.5;
   const startA = -Math.PI * 0.7;
   const endA   = Math.PI * 0.65;
   ctx.beginPath();
@@ -564,15 +564,15 @@ function drawSelBox(ctx, s) {
   const tipY = rotY + arcR * Math.sin(endA);
   ctx.beginPath();
   ctx.moveTo(tipX, tipY);
-  ctx.lineTo(tipX - 1.5, tipY - 3);
-  ctx.lineTo(tipX + 2.5, tipY - 1.2);
+  ctx.lineTo(tipX - 2, tipY - 3.5);
+  ctx.lineTo(tipX + 3.2, tipY - 1.5);
   ctx.closePath();
   ctx.fill();
 
   ctx.restore();
 
   // Delete Handle (red circular button above rotation handle with trashcan icon, keeping upright orientation)
-  const delR = 10;
+  const delR = 13;
   ctx.save();
   if (s.angle) {
     ctx.translate(rotX, delY);
@@ -585,45 +585,45 @@ function drawSelBox(ctx, s) {
   ctx.fillStyle = '#ef4444';
   ctx.fill();
   ctx.strokeStyle = '#dc2626';
-  ctx.lineWidth = 1;
+  ctx.lineWidth = 1.2;
   ctx.stroke();
 
   // Draw Trashcan Icon inside Delete Handle
   ctx.strokeStyle = '#ffffff';
   ctx.fillStyle = '#ffffff';
-  ctx.lineWidth = 1.3;
+  ctx.lineWidth = 1.5;
   ctx.lineCap = 'round';
   ctx.lineJoin = 'round';
 
   // Trashcan Lid bar
   ctx.beginPath();
-  ctx.moveTo(rotX - 4, delY - 2.5);
-  ctx.lineTo(rotX + 4, delY - 2.5);
+  ctx.moveTo(rotX - 5, delY - 3);
+  ctx.lineTo(rotX + 5, delY - 3);
   ctx.stroke();
 
   // Trashcan Top Handle notch
   ctx.beginPath();
-  ctx.moveTo(rotX - 1.5, delY - 2.5);
-  ctx.lineTo(rotX - 1.5, delY - 4.5);
-  ctx.lineTo(rotX + 1.5, delY - 4.5);
-  ctx.lineTo(rotX + 1.5, delY - 2.5);
+  ctx.moveTo(rotX - 2, delY - 3);
+  ctx.lineTo(rotX - 2, delY - 5.5);
+  ctx.lineTo(rotX + 2, delY - 5.5);
+  ctx.lineTo(rotX + 2, delY - 3);
   ctx.stroke();
 
   // Trashcan Body
   ctx.beginPath();
-  ctx.moveTo(rotX - 3.5, delY - 1);
-  ctx.lineTo(rotX - 2.8, delY + 4.5);
-  ctx.lineTo(rotX + 2.8, delY + 4.5);
-  ctx.lineTo(rotX + 3.5, delY - 1);
+  ctx.moveTo(rotX - 4.2, delY - 1);
+  ctx.lineTo(rotX - 3.4, delY + 5.5);
+  ctx.lineTo(rotX + 3.4, delY + 5.5);
+  ctx.lineTo(rotX + 4.2, delY - 1);
   ctx.closePath();
   ctx.stroke();
 
   // Inner lines
   ctx.beginPath();
-  ctx.moveTo(rotX - 1, delY + 0.5);
-  ctx.lineTo(rotX - 1, delY + 3);
-  ctx.moveTo(rotX + 1, delY + 0.5);
-  ctx.lineTo(rotX + 1, delY + 3);
+  ctx.moveTo(rotX - 1.4, delY + 0.5);
+  ctx.lineTo(rotX - 1.4, delY + 3.8);
+  ctx.moveTo(rotX + 1.4, delY + 0.5);
+  ctx.lineTo(rotX + 1.4, delY + 3.8);
   ctx.stroke();
 
   ctx.restore();

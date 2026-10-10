@@ -147,7 +147,7 @@ export default function MobileBottomDock({
   }, []);
 
   return (
-    <div className="mb-dock-wrapper">
+    <div className={`mb-dock-wrapper ${isDrawerOpen ? 'has-drawer-open' : ''} ${activePopover ? 'has-popover-open' : ''}`}>
       {/* ── Floating Popover Menu (Above Quick Property Buttons) ── */}
       {isSelectionMode && activePopover && (
         <div className="mb-popover">
