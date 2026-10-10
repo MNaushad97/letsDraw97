@@ -4,7 +4,7 @@
  */
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import {
-  Link2, Copy, Check, Mic, MicOff, Video, VideoOff, Maximize2, Minimize2, ChevronDown, ChevronUp
+  Link2, Copy, Check, Mic, MicOff, Video, VideoOff, Maximize2, Minimize2, ChevronDown, ChevronUp, GripHorizontal
 } from 'lucide-react';
 
 /* ── Individual User Block (Video ON or OFF) ─────────────────────── */
@@ -151,15 +151,161 @@ export default function RoomPanel({
   peers, myName, myColor, isConnected, roomId,
   localStream, remoteStreams, userName,
   toggleAudio, toggleVideo, requestMedia, emitMediaState,
+  reconnect,
 }) {
   const [copiedLink, setCopiedLink] = useState(false);
   const [copiedId, setCopiedId]     = useState(false);
   const [localAudioOn, setLocalAudioOn] = useState(false);
   const [localVideoOn, setLocalVideoOn] = useState(false);
   
-  // Expanded by default for all screens
+  // Minimized by default on small screens (<= 768px) to avoid overlapping top bars
   const [collapsed, setCollapsed] = useState(false);
-  const [minimized, setMinimized] = useState(false);
+  const [minimized, setMinimized] = useState(() => window.innerWidth <= 768);
+
+  // ── Dragging position state ──────────────────────────────────────
+  const [pos, setPos] = useState(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const dragOffsetRef = useRef({ x: 0, y: 0 });
+  const panelRef = useRef(null);
+
+  // ── Sync Status Tab state (3s/7s timers, 90s disconnect timeout) ──
+  const [tabState, setTabState] = useState(!isConnected ? 'retrying' : 'syncing');
+  const [tabVisible, setTabVisible] = useState(true);
+  const slideTimerRef = useRef(null);
+  const timeout90sRef = useRef(null);
+
+  // Handle connection state changes and timers
+  useEffect(() => {
+    clearTimeout(slideTimerRef.current);
+
+    if (isConnected) {
+      // Connected -> status: syncing (green)
+      clearTimeout(timeout90sRef.current);
+      timeout90sRef.current = null;
+
+      setTabState('syncing');
+      setTabVisible(true);
+
+      // Slide down after 3 seconds
+      slideTimerRef.current = setTimeout(() => {
+        setTabVisible(false);
+      }, 3000);
+    } else {
+      // Disconnected -> status: retrying (red)
+      setTabState('retrying');
+      setTabVisible(true);
+
+      // Slide down after 7 seconds
+      slideTimerRef.current = setTimeout(() => {
+        setTabVisible(false);
+      }, 7000);
+
+      // Start 90-second timeout if not already running
+      if (!timeout90sRef.current) {
+        timeout90sRef.current = setTimeout(() => {
+          setTabState('stopped');
+          setTabVisible(true);
+
+          // Slide down stopped tab after 7 seconds
+          clearTimeout(slideTimerRef.current);
+          slideTimerRef.current = setTimeout(() => {
+            setTabVisible(false);
+          }, 7000);
+        }, 90000); // 90 seconds
+      }
+    }
+
+    return () => {
+      clearTimeout(slideTimerRef.current);
+    };
+  }, [isConnected]);
+
+  // Manual retry handler when user clicks member count
+  const handleRetryConnection = useCallback((e) => {
+    e?.stopPropagation();
+
+    clearTimeout(timeout90sRef.current);
+    timeout90sRef.current = null;
+    clearTimeout(slideTimerRef.current);
+
+    // Call socket reconnect
+    reconnect?.();
+
+    // Reset status to retrying
+    setTabState('retrying');
+    setTabVisible(true);
+
+    // Slide down after 7 seconds
+    slideTimerRef.current = setTimeout(() => {
+      setTabVisible(false);
+    }, 7000);
+
+    // Start 90-second timeout again
+    timeout90sRef.current = setTimeout(() => {
+      setTabState('stopped');
+      setTabVisible(true);
+
+      clearTimeout(slideTimerRef.current);
+      slideTimerRef.current = setTimeout(() => {
+        setTabVisible(false);
+      }, 7000);
+    }, 90000);
+  }, [reconnect]);
+
+  const handlePointerDown = (e) => {
+    // Don't drag if clicking interactive elements
+    if (e.target.closest('button, input, a, video, .rp-peer-counter')) return;
+    
+    const node = panelRef.current;
+    if (!node) return;
+    
+    const rect = node.getBoundingClientRect();
+    dragOffsetRef.current = {
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    };
+    
+    setIsDragging(true);
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const handlePointerMove = (e) => {
+    if (!isDragging) return;
+    const node = panelRef.current;
+    const panelWidth = node ? node.offsetWidth : 240;
+    const panelHeight = node ? node.offsetHeight : 150;
+    
+    let newX = e.clientX - dragOffsetRef.current.x;
+    let newY = e.clientY - dragOffsetRef.current.y;
+    
+    // Constrain to viewport bounds with 8px safety margin
+    newX = Math.max(8, Math.min(window.innerWidth - panelWidth - 8, newX));
+    newY = Math.max(8, Math.min(window.innerHeight - panelHeight - 8, newY));
+    
+    setPos({ x: newX, y: newY });
+  };
+
+  const handlePointerUp = (e) => {
+    if (isDragging) {
+      setIsDragging(false);
+      try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (_) {}
+    }
+  };
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (!pos || !panelRef.current) return;
+      const panelWidth = panelRef.current.offsetWidth;
+      const panelHeight = panelRef.current.offsetHeight;
+      const clampedX = Math.max(8, Math.min(window.innerWidth - panelWidth - 8, pos.x));
+      const clampedY = Math.max(8, Math.min(window.innerHeight - panelHeight - 8, pos.y));
+      if (clampedX !== pos.x || clampedY !== pos.y) {
+        setPos({ x: clampedX, y: clampedY });
+      }
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [pos]);
 
   // Sync local audio/video state with actual track states whenever localStream changes
   useEffect(() => {
@@ -232,22 +378,76 @@ export default function RoomPanel({
     }
   };
 
+  const dragStyle = pos ? { left: `${pos.x}px`, top: `${pos.y}px`, right: 'auto', bottom: 'auto' } : undefined;
+
+  const tabLabel = tabState === 'syncing'
+    ? 'syncing...'
+    : tabState === 'retrying'
+    ? 'retrying sync...'
+    : 'sync stopped • click member count to retry';
+
+  const dotClass = tabState === 'syncing'
+    ? 'on'
+    : tabState === 'retrying'
+    ? 'off blinking'
+    : 'stopped';
+
   if (minimized) {
     return (
-      <div className="rp-minimized" onClick={() => setMinimized(false)}>
+      <div
+        ref={panelRef}
+        className={`rp-minimized status-${tabState} ${isDragging ? 'is-dragging' : ''}`}
+        style={dragStyle}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        onClick={(e) => {
+          if (!isDragging) setMinimized(false);
+        }}
+      >
+        {/* Top Status Tab attached to Room panel */}
+        <div className={`rp-top-status-tab ${tabState} ${tabVisible ? 'visible' : ''}`}>
+          <div className={`rp-dot ${dotClass}`} />
+          <span>{tabLabel}</span>
+        </div>
+
+        <GripHorizontal size={12} className="rp-grip-icon" />
         <Users size={14} />
-        <span>{totalMembers}</span>
-        <div className={`rp-dot ${isConnected ? 'on' : 'off'}`} />
+        <button
+          className={`rp-peer-counter-mini status-${tabState}`}
+          onClick={handleRetryConnection}
+          title={tabState === 'stopped' ? 'Sync stopped. Click to retry.' : 'Click to retry sync'}
+        >
+          <span>{totalMembers}</span>
+          <div className={`rp-dot ${dotClass}`} />
+        </button>
         <Maximize2 size={12} />
       </div>
     );
   }
 
   return (
-    <div className={`rp-panel sketch-style ${collapsed ? 'rp-collapsed' : ''}`}>
+    <div
+      ref={panelRef}
+      className={`rp-panel sketch-style status-${tabState} ${collapsed ? 'rp-collapsed' : ''} ${isDragging ? 'is-dragging' : ''}`}
+      style={dragStyle}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+    >
+      {/* Top Status Tab attached to Room panel */}
+      <div className={`rp-top-status-tab ${tabState} ${tabVisible ? 'visible' : ''}`}>
+        <div className={`rp-dot ${dotClass}`} />
+        <span>{tabLabel}</span>
+      </div>
       
       {/* ── Top Section: Actions & Controls ── */}
       <div className="rp-top-bar">
+        <div className="rp-drag-handle" title="Drag to move panel">
+          <GripHorizontal size={14} className="rp-grip-icon" />
+        </div>
         <div className="rp-actions-sketch">
           <button className={`rp-sketch-btn ${copiedId ? 'success' : ''}`} onClick={copyRoomId} title="Copy Room ID">
             {copiedId ? <Check size={14}/> : <Copy size={14}/>}
@@ -257,9 +457,14 @@ export default function RoomPanel({
             {copiedLink ? <Check size={14}/> : <Link2 size={14}/>}
             <span>Link</span>
           </button>
-          <span className="rp-peer-counter" title="Members in room / Max 4 allowed">
-            {totalMembers}/4
-          </span>
+          <button
+            className={`rp-peer-counter status-${tabState}`}
+            onClick={handleRetryConnection}
+            title={tabState === 'stopped' ? 'Sync stopped. Click to retry connection.' : 'Members in room / Click to retry sync'}
+          >
+            <div className={`rp-dot ${dotClass}`} />
+            <span>{totalMembers}/4</span>
+          </button>
         </div>
         
         <div className="rp-top-controls">

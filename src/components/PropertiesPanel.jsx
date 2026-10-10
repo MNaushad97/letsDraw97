@@ -27,7 +27,7 @@ const SlidersIcon = () => (
 );
 
 // ── Preset Palettes ──────────────────────────────────────────
-const STROKE_PRESETS = [
+export const STROKE_PRESETS = [
   '#1e1e1e', // Black/Dark
   '#e03131', // Red
   '#2f9e44', // Green
@@ -35,7 +35,7 @@ const STROKE_PRESETS = [
   '#f59f00', // Orange
 ];
 
-const BG_PRESETS = [
+export const BG_PRESETS = [
   'transparent',
   '#ffcdd2', // Light Red
   '#c8e6c9', // Light Green
@@ -44,14 +44,14 @@ const BG_PRESETS = [
 ];
 
 // ── SVG Icons ───────────────────────────────────────────────
-const TransparentIcon = () => (
+export const TransparentIcon = () => (
   <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
     <rect width="20" height="20" rx="4" fill="#E2E8F0" />
     <path d="M0 0h10v10H0zM10 10h10v10H10z" fill="#CBD5E1" />
   </svg>
 );
 
-const HachureIcon = () => (
+export const HachureIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
     <rect x="3" y="3" width="18" height="18" rx="4" fill="none" strokeWidth="1.5" />
     <line x1="6" y1="18" x2="18" y2="6" strokeWidth="1.5" />
@@ -60,65 +60,72 @@ const HachureIcon = () => (
   </svg>
 );
 
-const CrossHatchIcon = () => (
+export const CrossHatchIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" fill="none">
     <rect x="3" y="3" width="18" height="18" rx="4" />
     <path d="M7 17L17 7M7 7l10 10M7 12h10M12 7v10" strokeWidth="1.5" />
   </svg>
 );
 
-const SolidIcon = () => (
+export const SolidIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
     <rect x="3" y="3" width="18" height="18" rx="4" />
   </svg>
 );
 
+export const ZigzagIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.5" fill="none">
+    <rect x="3" y="3" width="18" height="18" rx="4" />
+    <path d="M6 9l3 6 3-6 3 6 3-6" strokeWidth="1.5" />
+  </svg>
+);
+
 // Stroke Width Icons
-const StrokeThinIcon = () => (
+export const StrokeThinIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
     <rect x="4" y="11" width="16" height="2" rx="1" />
   </svg>
 );
-const StrokeMediumIcon = () => (
+export const StrokeMediumIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
     <rect x="4" y="10" width="16" height="4" rx="1.5" />
   </svg>
 );
-const StrokeThickIcon = () => (
+export const StrokeThickIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
     <rect x="4" y="8" width="16" height="8" rx="2" />
   </svg>
 );
 
 // Stroke Style Icons
-const StrokeSolidIcon = () => (
+export const StrokeSolidIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
     <line x1="4" y1="12" x2="20" y2="12" />
   </svg>
 );
-const StrokeDashedIcon = () => (
+export const StrokeDashedIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeDasharray="4 4">
     <line x1="4" y1="12" x2="20" y2="12" />
   </svg>
 );
-const StrokeDottedIcon = () => (
+export const StrokeDottedIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" strokeDasharray="1.5 3.5" strokeLinecap="round">
     <line x1="4" y1="12" x2="20" y2="12" />
   </svg>
 );
 
 // Sloppiness Icons
-const SloppyArchitectIcon = () => (
+export const SloppyArchitectIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none">
     <line x1="4" y1="12" x2="20" y2="12" />
   </svg>
 );
-const SloppyArtistIcon = () => (
+export const SloppyArtistIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none">
     <path d="M4 13c3-3 6 1 8-1s5-3 8-1" />
   </svg>
 );
-const SloppyCartoonIcon = () => (
+export const SloppyCartoonIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" fill="none">
     <path d="M4 11c3-2 6 2 8 0s5-4 8-1" />
     <path d="M4 14c4-1 7 1 9 0s4-2 7 0" opacity="0.75" />
@@ -126,40 +133,40 @@ const SloppyCartoonIcon = () => (
 );
 
 // Font Family Icons
-const FontHandIcon = () => (
+export const FontHandIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
   </svg>
 );
 
-const FontSansIcon = () => (
+export const FontSansIcon = () => (
   <span style={{ fontFamily: 'Inter, sans-serif', fontWeight: 700, fontSize: '15px' }}>A</span>
 );
 
-const FontCodeIcon = () => (
+export const FontCodeIcon = () => (
   <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '13px' }}>&lt;/&gt;</span>
 );
 
-const FontSerifIcon = () => (
+export const FontSerifIcon = () => (
   <span style={{ fontFamily: 'Georgia, serif', fontWeight: 700, fontSize: '16px' }}>A</span>
 );
 
 // Align Icons
-const AlignLeftIcon = () => (
+export const AlignLeftIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="3" y1="6" x2="21" y2="6" />
     <line x1="3" y1="12" x2="15" y2="12" />
     <line x1="3" y1="18" x2="18" y2="18" />
   </svg>
 );
-const AlignCenterIcon = () => (
+export const AlignCenterIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="3" y1="6" x2="21" y2="6" />
     <line x1="6" y1="12" x2="18" y2="12" />
     <line x1="4" y1="18" x2="20" y2="18" />
   </svg>
 );
-const AlignRightIcon = () => (
+export const AlignRightIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <line x1="3" y1="6" x2="21" y2="6" />
     <line x1="9" y1="12" x2="21" y2="12" />
@@ -168,22 +175,22 @@ const AlignRightIcon = () => (
 );
 
 // Layer Icons
-const LayerBackIcon = () => (
+export const LayerBackIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M12 5v14M5 19h14M18 13l-6 6-6-6" />
   </svg>
 );
-const LayerBackwardIcon = () => (
+export const LayerBackwardIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M12 5v14M18 13l-6 6-6-6" />
   </svg>
 );
-const LayerForwardIcon = () => (
+export const LayerForwardIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M12 19V5M18 11l-6-6-6 6" />
   </svg>
 );
-const LayerFrontIcon = () => (
+export const LayerFrontIcon = () => (
   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
     <path d="M12 19V5M5 5h14M18 11l-6-6-6 6" />
   </svg>

@@ -1,6 +1,6 @@
 import { useRef, useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  Undo2, Redo2, Trash2, Download, ZoomIn, ZoomOut, Maximize2, Sun, Moon, Copy, Check
+  Undo2, Redo2, Trash2, Download, ZoomIn, ZoomOut, Maximize2, Sun, Moon, Copy, Check, MoreHorizontal
 } from 'lucide-react';
 
 import Canvas from './components/Canvas.jsx';
@@ -9,6 +9,7 @@ import PropertiesPanel from './components/PropertiesPanel.jsx';
 import RoomLobby from './components/RoomLobby.jsx';
 import PeerCursors from './components/PeerCursors.jsx';
 import RoomPanel from './components/RoomPanel.jsx';
+import MobileBottomDock from './components/MobileBottomDock.jsx';
 import { useMultiplayer, checkRoom } from './hooks/useMultiplayer.js';
 import { useWebRTCMesh } from './hooks/useWebRTCMesh.js';
 import { generateRandomName, getNextPeerColor } from './lib/randomNames.js';
@@ -122,11 +123,23 @@ export default function App() {
 
   // ── Theme ─────────────────────────────────────────────────────────
   const [theme, setTheme] = useState(() => localStorage.getItem('letsdraw-theme') || 'light');
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('letsdraw-theme', theme);
   }, [theme]);
+
+  // Close mobile menu on outside click
+  useEffect(() => {
+    const handleOutside = (e) => {
+      if (!e.target.closest('.corner-actions-mobile')) {
+        setMobileMenuOpen(false);
+      }
+    };
+    window.addEventListener('pointerdown', handleOutside);
+    return () => window.removeEventListener('pointerdown', handleOutside);
+  }, []);
 
   const toggleTheme = () => setTheme((t) => (t === 'dark' ? 'light' : 'dark'));
 
@@ -243,6 +256,7 @@ export default function App() {
     emitShapesReordered,
     emitCanvasFullSync,
     emitMediaState,
+    reconnect,
   } = useMultiplayer({
     roomId,
     userId,
@@ -330,42 +344,13 @@ export default function App() {
         </div>
         <button
           id="theme-toggle-btn"
-          className="theme-toggle-btn"
+          className="theme-toggle-btn desktop-only"
           onClick={toggleTheme}
           aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
           title={theme === 'dark' ? 'Light mode' : 'Dark mode'}
         >
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </button>
-
-        {/* Multiplayer indicator badge with copy button */}
-        {multiplayerEnabled && roomId && (
-          <button
-            id="copy-room-badge-btn"
-            onClick={handleCopyRoomId}
-            title="Click to copy Room ID directly"
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              background: isConnected ? 'rgba(46,204,113,0.15)' : 'rgba(231,76,60,0.12)',
-              border: `1px solid ${isConnected ? '#2ecc71' : '#e74c3c'}`,
-              borderRadius: 20, padding: '4px 10px',
-              fontSize: 11, fontWeight: 700,
-              color: isConnected ? '#27ae60' : '#c0392b',
-              fontFamily: 'Inter, system-ui, sans-serif',
-              cursor: 'pointer',
-              transition: 'all 0.15s ease',
-            }}
-          >
-            <div style={{
-              width: 6, height: 6, borderRadius: '50%',
-              background: isConnected ? '#2ecc71' : '#e74c3c',
-              animation: isConnected ? 'pulse 2s infinite' : 'none',
-              flexShrink: 0,
-            }} />
-            <span>{isConnected ? `Room: ${roomId}` : 'Reconnecting…'}</span>
-            {copiedRoom ? <Check size={12} color="#27ae60" /> : <Copy size={12} />}
-          </button>
-        )}
       </div>
 
       {/* Top Toolbar */}
@@ -386,6 +371,7 @@ export default function App() {
           toggleVideo={toggleVideo}
           requestMedia={requestMedia}
           emitMediaState={emitMediaState}
+          reconnect={reconnect}
         />
       )}
 
@@ -424,7 +410,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Properties Panel */}
+      {/* Properties Panel (Desktop) */}
       <PropertiesPanel
         activeTool={tool}
         selectedShape={selectedShape}
@@ -439,6 +425,24 @@ export default function App() {
         textAlign={textAlign}               onTextAlignChange={setTextAlign}
         opacity={opacity}                   onOpacityChange={setOpacity}
         onLayerChange={handleLayerChange}
+      />
+
+      {/* Mobile Bottom Dock & Properties Experience (Small Devices) */}
+      <MobileBottomDock
+        activeTool={tool}                   onToolChange={setTool}
+        selectedShape={selectedShape}       onSelectShape={setSelectedShape}
+        color={color}                       onColorChange={setColor}
+        backgroundColor={backgroundColor}   onBackgroundColorChange={setBackgroundColor}
+        fillStyle={fillStyle}               onFillStyleChange={setFillStyle}
+        brushSize={brushSize}               onBrushSizeChange={setBrushSize}
+        strokeStyle={strokeStyle}           onStrokeStyleChange={setStrokeStyle}
+        sloppiness={sloppiness}             onSloppinessChange={setSloppiness}
+        fontFamily={fontFamily}             onFontFamilyChange={setFontFamily}
+        fontSize={fontSize}                 onFontSizeChange={setFontSize}
+        textAlign={textAlign}               onTextAlignChange={setTextAlign}
+        opacity={opacity}                   onOpacityChange={setOpacity}
+        onLayerChange={handleLayerChange}
+        onDeleteShape={() => canvasRef.current?.deleteSelectedShape?.()}
       />
 
       {/* Zoom controls */}
@@ -458,8 +462,8 @@ export default function App() {
         </button>
       </div>
 
-      {/* Corner Actions */}
-      <div className="corner-actions">
+      {/* Corner Actions (Desktop) */}
+      <div className="corner-actions desktop-only">
         <button id="undo-btn" className="action-btn" onClick={handleUndo} disabled={!canUndo} aria-label="Undo (Ctrl+Z)" title="Undo (Ctrl+Z)" style={{ opacity: canUndo ? 1 : 0.35 }}>
           <Undo2 size={14} /> <span className="btn-label">Undo</span>
         </button>
@@ -472,6 +476,43 @@ export default function App() {
         <button id="download-btn" className="action-btn primary" onClick={handleDownload} aria-label="Download image" title="Export as PNG">
           <Download size={14} /> <span className="btn-label">Export</span>
         </button>
+      </div>
+
+      {/* Mobile Top-Right Actions Pill (Inspired by Image 3: [ Undo ] [ Redo ] [ ... ]) */}
+      <div className="corner-actions-mobile mobile-only">
+        <div className="mobile-actions-pill">
+          <button className="mobile-action-btn" onClick={handleUndo} disabled={!canUndo} title="Undo">
+            <Undo2 size={16} />
+          </button>
+          <button className="mobile-action-btn" onClick={handleRedo} disabled={!canRedo} title="Redo">
+            <Redo2 size={16} />
+          </button>
+          <button
+            className={`mobile-action-btn ${mobileMenuOpen ? 'active' : ''}`}
+            onClick={() => setMobileMenuOpen(m => !m)}
+            title="More Actions"
+          >
+            <MoreHorizontal size={18} />
+          </button>
+        </div>
+
+        {/* Floating popover menu revealing Theme, Export, Clear */}
+        {mobileMenuOpen && (
+          <div className="mobile-actions-popover" onClick={(e) => e.stopPropagation()}>
+            <button className="mobile-popover-item" onClick={() => { toggleTheme(); setMobileMenuOpen(false); }} title="Toggle Theme">
+              {theme === 'dark' ? <Sun size={15} /> : <Moon size={15} />}
+              <span>{theme === 'dark' ? 'Light Mode' : 'Dark Mode'}</span>
+            </button>
+            <button className="mobile-popover-item" onClick={() => { handleDownload(); setMobileMenuOpen(false); }} title="Export Image">
+              <Download size={15} />
+              <span>Export</span>
+            </button>
+            <button className="mobile-popover-item danger" onClick={() => { handleClear(); setMobileMenuOpen(false); }} title="Clear Canvas">
+              <Trash2 size={15} />
+              <span>Clear Canvas</span>
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Toast */}

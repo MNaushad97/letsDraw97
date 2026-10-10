@@ -239,6 +239,12 @@ export function useMultiplayer({
     socketRef.current?.emit('webrtc-media-state', { roomId, userId, audioOn, videoOn });
   }, [roomId, userId]);
 
+  const reconnect = useCallback(() => {
+    if (socketRef.current && !socketRef.current.connected) {
+      socketRef.current.connect();
+    }
+  }, []);
+
   return {
     socket,
     isConnected,
@@ -251,5 +257,6 @@ export function useMultiplayer({
     emitShapesReordered,
     emitCanvasFullSync,
     emitMediaState,
+    reconnect,
   };
 }
