@@ -1712,16 +1712,16 @@ body,
   .mb-popover-swatches {
     display: flex;
     align-items: center;
-    gap: 6px;
-    flex-wrap: wrap;
     justify-content: center;
+    gap: 6px;
+    flex-wrap: nowrap;
   }
 
   .mb-swatch-btn {
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
-    border: 2px solid transparent;
+    border: 1px solid rgba(0, 0, 0, 0.15);
     cursor: pointer;
     transition: transform 0.15s ease;
     flex-shrink: 0;
@@ -1741,11 +1741,13 @@ body,
 
   .mb-swatch-custom {
     position: relative;
-    width: 28px;
-    height: 28px;
+    width: 26px;
+    height: 26px;
     border-radius: 50%;
     overflow: hidden;
     cursor: pointer;
+    flex-shrink: 0;
+    border: 1px solid rgba(0, 0, 0, 0.15);
   }
   .mb-swatch-custom input {
     position: absolute;
@@ -1777,7 +1779,7 @@ body,
   .mb-drawer-card {
     width: 100vw;
     box-sizing: border-box;
-    max-height: 70vh;
+    max-height: 50vh;
     display: flex;
     flex-direction: column;
     background: var(--bg-surface);

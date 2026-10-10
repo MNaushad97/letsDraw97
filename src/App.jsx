@@ -85,7 +85,7 @@ export default function App() {
   const [tool, setTool]                     = useState('brush');
   const [color, setColor]                   = useState('#1e1e1e');
   const [backgroundColor, setBackgroundColor] = useState('transparent');
-  const [fillStyle, setFillStyle]           = useState('hachure');
+  const [fillStyle, setFillStyle]           = useState('none');
   const [brushSize, setBrushSize]           = useState(2);
   const [strokeStyle, setStrokeStyle]       = useState('solid');
   const [sloppiness, setSloppiness]         = useState(1);
@@ -152,8 +152,16 @@ export default function App() {
     setToast(msg);
     setToastVisible(true);
     clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToastVisible(false), 1400);
+    toastTimer.current = setTimeout(() => setToastVisible(false), 1800);
   }, []);
+
+  const handleFillStyleChange = useCallback((newStyle) => {
+    if (newStyle !== 'none' && (backgroundColor === 'transparent' || !backgroundColor)) {
+      showToast('Select a background color first for fill!');
+      setBackgroundColor('#bbdefb');
+    }
+    setFillStyle(newStyle);
+  }, [backgroundColor, showToast]);
 
   // ── History change callback ──────────────────────────────────────
   const handleHistoryChange = useCallback(({ canUndo: u, canRedo: r }) => {
@@ -416,7 +424,7 @@ export default function App() {
         selectedShape={selectedShape}
         color={color}                       onColorChange={setColor}
         backgroundColor={backgroundColor}   onBackgroundColorChange={setBackgroundColor}
-        fillStyle={fillStyle}               onFillStyleChange={setFillStyle}
+        fillStyle={fillStyle}               onFillStyleChange={handleFillStyleChange}
         brushSize={brushSize}               onBrushSizeChange={setBrushSize}
         strokeStyle={strokeStyle}           onStrokeStyleChange={setStrokeStyle}
         sloppiness={sloppiness}             onSloppinessChange={setSloppiness}
@@ -433,7 +441,7 @@ export default function App() {
         selectedShape={selectedShape}       onSelectShape={setSelectedShape}
         color={color}                       onColorChange={setColor}
         backgroundColor={backgroundColor}   onBackgroundColorChange={setBackgroundColor}
-        fillStyle={fillStyle}               onFillStyleChange={setFillStyle}
+        fillStyle={fillStyle}               onFillStyleChange={handleFillStyleChange}
         brushSize={brushSize}               onBrushSizeChange={setBrushSize}
         strokeStyle={strokeStyle}           onStrokeStyleChange={setStrokeStyle}
         sloppiness={sloppiness}             onSloppinessChange={setSloppiness}

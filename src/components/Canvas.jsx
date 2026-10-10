@@ -385,9 +385,9 @@ function getRoughOptions(s) {
 
   // Lines, arrows, and brush strokes are open paths — never fill them
   const NO_FILL_TYPES = ['line', 'arrow', 'brush'];
-  if (s.bg && s.bg !== 'transparent' && !NO_FILL_TYPES.includes(s.type)) {
+  if (s.bg && s.bg !== 'transparent' && s.fillStyle && s.fillStyle !== 'none' && !NO_FILL_TYPES.includes(s.type)) {
     opts.fill = s.bg;
-    opts.fillStyle = s.fillStyle || 'hachure';
+    opts.fillStyle = s.fillStyle;
     opts.fillWeight = Math.max(1, (s.sz || 2) / 2);
     opts.hachureGap = 8;
   }

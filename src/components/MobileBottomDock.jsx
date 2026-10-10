@@ -17,6 +17,7 @@ import {
   STROKE_PRESETS,
   BG_PRESETS,
   TransparentIcon,
+  NoneIcon,
   HachureIcon,
   CrossHatchIcon,
   SolidIcon,
@@ -112,8 +113,36 @@ export default function MobileBottomDock({
 
   const handleToolSelect = (toolId) => {
     onToolChange(toolId);
+    setActivePopover(null);
     setIsDrawerOpen(false);
   };
+
+  const handleOpenDrawer = () => {
+    setActivePopover(null);
+    setIsDrawerOpen(true);
+  };
+
+  const handleCloseDrawer = () => {
+    setActivePopover(null);
+    setIsDrawerOpen(false);
+  };
+
+  const handleTogglePopover = (popoverName) => {
+    setIsDrawerOpen(false);
+    setActivePopover((prev) => (prev === popoverName ? null : popoverName));
+  };
+
+  // Reset popovers when selected shape or active tool changes
+  useEffect(() => {
+    setActivePopover(null);
+  }, [activeTool, selectedShape?.id]);
+
+  // Ensure active popovers are closed whenever drawer opens
+  useEffect(() => {
+    if (isDrawerOpen) {
+      setActivePopover(null);
+    }
+  }, [isDrawerOpen]);
 
   const getToolObj = (id) => ALL_TOOLS.find((t) => t.id === id) || ALL_TOOLS[0];
   const ActiveIcon = getToolObj(activeTool).icon;
@@ -292,7 +321,7 @@ export default function MobileBottomDock({
               {/* Slot 1: More (...) */}
               <button
                 className={`mb-dock-item ${isDrawerOpen ? 'active' : ''}`}
-                onClick={() => setIsDrawerOpen(true)}
+                onClick={handleOpenDrawer}
               >
                 <div className="mb-dock-icon-box">
                   <MoreHorizontal size={20} />
@@ -338,7 +367,7 @@ export default function MobileBottomDock({
             {/* Standalone Circle: Active Tool */}
             <button
               className="mb-dock-circle-active"
-              onClick={() => setIsDrawerOpen(true)}
+              onClick={handleOpenDrawer}
               title={`Active: ${getToolObj(activeTool).label}`}
             >
               <ActiveIcon size={22} />
@@ -350,7 +379,7 @@ export default function MobileBottomDock({
             {/* Slot 1: More (...) -> opens full properties drawer */}
             <button
               className={`mb-dock-item ${isDrawerOpen ? 'active' : ''}`}
-              onClick={() => setIsDrawerOpen(true)}
+              onClick={handleOpenDrawer}
             >
               <div className="mb-dock-icon-box">
                 <MoreHorizontal size={20} />
@@ -363,7 +392,7 @@ export default function MobileBottomDock({
                 {/* Text Prop 1: Font Family */}
                 <button
                   className={`mb-dock-item ${activePopover === 'fontFamily' ? 'active' : ''}`}
-                  onClick={() => setActivePopover(activePopover === 'fontFamily' ? null : 'fontFamily')}
+                  onClick={() => handleTogglePopover('fontFamily')}
                 >
                   <div className="mb-dock-icon-box">
                     <Type size={18} />
@@ -374,7 +403,7 @@ export default function MobileBottomDock({
                 {/* Text Prop 2: Font Size */}
                 <button
                   className={`mb-dock-item ${activePopover === 'fontSize' ? 'active' : ''}`}
-                  onClick={() => setActivePopover(activePopover === 'fontSize' ? null : 'fontSize')}
+                  onClick={() => handleTogglePopover('fontSize')}
                 >
                   <div className="mb-dock-icon-box">
                     <span style={{ fontWeight: 700, fontSize: 13 }}>{fontSize}px</span>
@@ -385,7 +414,7 @@ export default function MobileBottomDock({
                 {/* Text Prop 3: Color */}
                 <button
                   className={`mb-dock-item ${activePopover === 'strokeColor' ? 'active' : ''}`}
-                  onClick={() => setActivePopover(activePopover === 'strokeColor' ? null : 'strokeColor')}
+                  onClick={() => handleTogglePopover('strokeColor')}
                 >
                   <div className="mb-dock-icon-box">
                     <div className="mb-swatch-preview" style={{ background: color }} />
@@ -398,7 +427,7 @@ export default function MobileBottomDock({
                 {/* Shape Prop 1: Stroke Style */}
                 <button
                   className={`mb-dock-item ${activePopover === 'strokeStyle' ? 'active' : ''}`}
-                  onClick={() => setActivePopover(activePopover === 'strokeStyle' ? null : 'strokeStyle')}
+                  onClick={() => handleTogglePopover('strokeStyle')}
                 >
                   <div className="mb-dock-icon-box">
                     <div className={`style-line-preview ${strokeStyle}`} />
@@ -409,7 +438,7 @@ export default function MobileBottomDock({
                 {/* Shape Prop 2: Stroke Width */}
                 <button
                   className={`mb-dock-item ${activePopover === 'strokeWidth' ? 'active' : ''}`}
-                  onClick={() => setActivePopover(activePopover === 'strokeWidth' ? null : 'strokeWidth')}
+                  onClick={() => handleTogglePopover('strokeWidth')}
                 >
                   <div className="mb-dock-icon-box">
                     <div className={`width-line-preview w-${brushSize}`} />
@@ -420,7 +449,7 @@ export default function MobileBottomDock({
                 {/* Shape Prop 3: Stroke Color */}
                 <button
                   className={`mb-dock-item ${activePopover === 'strokeColor' ? 'active' : ''}`}
-                  onClick={() => setActivePopover(activePopover === 'strokeColor' ? null : 'strokeColor')}
+                  onClick={() => handleTogglePopover('strokeColor')}
                 >
                   <div className="mb-dock-icon-box">
                     <div className="mb-swatch-preview" style={{ background: color }} />
@@ -435,7 +464,7 @@ export default function MobileBottomDock({
 
       {/* ── Bottom Sheet Drawer (Full Tools or Full Properties) ── */}
       {isDrawerOpen && (
-        <div className="mb-drawer-overlay" onClick={() => setIsDrawerOpen(false)}>
+        <div className="mb-drawer-overlay" onClick={handleCloseDrawer}>
           <div className="mb-drawer-card" onClick={(e) => e.stopPropagation()}>
             <div className="mb-drawer-handle" />
 
@@ -445,7 +474,7 @@ export default function MobileBottomDock({
               </span>
               <button
                 className="mb-drawer-close"
-                onClick={() => setIsDrawerOpen(false)}
+                onClick={handleCloseDrawer}
                 aria-label="Close drawer"
               >
                 <X size={16} />
@@ -638,6 +667,13 @@ export default function MobileBottomDock({
                         <section className="prop-group">
                           <label className="prop-label">Fill</label>
                           <div className="btn-group">
+                            <button
+                              className={`prop-btn${fillStyle === 'none' ? ' active' : ''}`}
+                              onClick={() => onFillStyleChange('none')}
+                              title="None (No fill pattern)"
+                            >
+                              <NoneIcon />
+                            </button>
                             <button
                               className={`prop-btn${fillStyle === 'hachure' ? ' active' : ''}`}
                               onClick={() => onFillStyleChange('hachure')}

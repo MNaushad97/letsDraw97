@@ -51,6 +51,13 @@ export const TransparentIcon = () => (
   </svg>
 );
 
+export const NoneIcon = () => (
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+    <rect x="3" y="3" width="18" height="18" rx="4" strokeWidth="1.5" />
+    <line x1="4" y1="20" x2="20" y2="4" strokeWidth="1.8" stroke="#ff4f6a" />
+  </svg>
+);
+
 export const HachureIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
     <rect x="3" y="3" width="18" height="18" rx="4" fill="none" strokeWidth="1.5" />
@@ -424,6 +431,13 @@ export default function PropertiesPanel({
             <section className="prop-group">
               <label className="prop-label">Fill</label>
               <div className="btn-group">
+                <button
+                  className={`prop-btn${fillStyle === 'none' ? ' active' : ''}`}
+                  onClick={() => onFillStyleChange('none')}
+                  title="None (No fill pattern)"
+                >
+                  <NoneIcon />
+                </button>
                 <button
                   className={`prop-btn${fillStyle === 'hachure' ? ' active' : ''}`}
                   onClick={() => onFillStyleChange('hachure')}
