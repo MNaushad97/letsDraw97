@@ -1345,13 +1345,13 @@ body,
 /* Responsive: 1 column layout with w-fit on small devices */
 @media (max-width: 768px) {
   .rp-panel.sketch-style {
-    top: calc(88px + env(safe-area-inset-top, 0px));
+    top: calc(64px + env(safe-area-inset-top, 0px));
     bottom: auto;
-    right: 10px;
-    left: auto;
+    left: 16px;
+    right: auto;
     width: fit-content;
     min-width: 170px;
-    max-width: calc(100vw - 20px);
+    max-width: calc(100vw - 32px);
     max-height: 55vh;
     padding: 10px;
     gap: 8px;
@@ -1361,9 +1361,10 @@ body,
   }
 
   .rp-minimized {
-    top: calc(88px + env(safe-area-inset-top, 0px));
+    top: calc(64px + env(safe-area-inset-top, 0px));
     bottom: auto;
-    right: 10px;
+    left: 16px;
+    right: auto;
     z-index: 350;
   }
 
@@ -1431,9 +1432,11 @@ body,
   }
 
   .bottom-bar {
-    bottom: calc(84px + env(safe-area-inset-bottom, 0px));
+    position: fixed;
+    bottom: calc(92px + env(safe-area-inset-bottom, 0px));
     left: 16px;
-    z-index: 300;
+    z-index: 450;
+    pointer-events: auto;
   }
 
   .mb-dock-wrapper {
@@ -2032,7 +2035,18 @@ body,
     flex-direction: column;
     gap: 4px;
     min-width: 145px;
-    animation: popoverSlideUp 0.18s cubic-bezier(0.16, 1, 0.3, 1);
+    animation: menuPopoverSlideUp 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes menuPopoverSlideUp {
+    0% {
+      opacity: 0;
+      transform: translateY(6px) scale(0.95);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
   }
 
   .mobile-popover-item {

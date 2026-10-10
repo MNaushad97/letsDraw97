@@ -102,12 +102,22 @@ function getHandles(s) {
   });
 
   // Top-center Rotation handle (floating 24px above top border)
+  const rotY = y - pad - 24;
   handles.push({
     id: 'rotate',
     cursor: 'grab',
     type: 'rotate',
     x: x + w / 2,
-    y: y - pad - 24,
+    y: rotY,
+  });
+
+  // Top Delete handle (floating 22px above rotation circle)
+  handles.push({
+    id: 'delete',
+    cursor: 'pointer',
+    type: 'delete',
+    x: x + w / 2,
+    y: rotY - 22,
   });
 
   // Specialized 3-Point handles for Line & Arrow
@@ -136,7 +146,7 @@ function hitHandle(px, py, s) {
   }
 
   for (const h of getHandles(s)) {
-    const r = h.type === 'rotate' ? 10 : HANDLE_R + 4;
+    const r = h.type === 'delete' ? 12 : h.type === 'rotate' ? 10 : HANDLE_R + 4;
     if (Math.hypot(mx - h.x, my - h.y) <= r) return h;
   }
   return null;
@@ -506,9 +516,11 @@ function drawSelBox(ctx, s) {
   ctx.strokeRect(bX, bY, bW, bH);
   ctx.setLineDash([]);
 
-  // Connecting stem to Top-Center Rotation handle
+  // Connecting stem to Top-Center Rotation handle & Delete handle
   const rotX = cx;
   const rotY = bY - 24;
+  const delY = rotY - 22;
+
   ctx.beginPath();
   ctx.moveTo(cx, bY);
   ctx.lineTo(rotX, rotY);
@@ -516,18 +528,109 @@ function drawSelBox(ctx, s) {
   ctx.lineWidth = 1.2;
   ctx.stroke();
 
-  // Rotation Handle (top-center circular icon)
+  // Rotation Handle (top-center circular button with rotate arrow icon)
+  const rotR = 9.5;
+  ctx.save();
+  if (s.angle) {
+    ctx.translate(rotX, rotY);
+    ctx.rotate(-s.angle);
+    ctx.translate(-rotX, -rotY);
+  }
+
   ctx.beginPath();
-  ctx.arc(rotX, rotY, 6, 0, Math.PI * 2);
-  ctx.fillStyle = '#fff';
+  ctx.arc(rotX, rotY, rotR, 0, Math.PI * 2);
+  ctx.fillStyle = '#ffffff';
   ctx.fill();
   ctx.strokeStyle = '#6c63ff';
   ctx.lineWidth = 1.5;
   ctx.stroke();
 
+  // Draw Rotate Arrow icon inside
+  ctx.strokeStyle = '#6c63ff';
+  ctx.fillStyle = '#6c63ff';
+  ctx.lineWidth = 1.3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  const arcR = 4;
+  const startA = -Math.PI * 0.7;
+  const endA   = Math.PI * 0.65;
+  ctx.beginPath();
+  ctx.arc(rotX, rotY, arcR, startA, endA);
+  ctx.stroke();
+
+  // Arrowhead tip
+  const tipX = rotX + arcR * Math.cos(endA);
+  const tipY = rotY + arcR * Math.sin(endA);
+  ctx.beginPath();
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(tipX - 1.5, tipY - 3);
+  ctx.lineTo(tipX + 2.5, tipY - 1.2);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.restore();
+
+  // Delete Handle (red circular button above rotation handle with trashcan icon, keeping upright orientation)
+  const delR = 10;
+  ctx.save();
+  if (s.angle) {
+    ctx.translate(rotX, delY);
+    ctx.rotate(-s.angle);
+    ctx.translate(-rotX, -delY);
+  }
+
+  ctx.beginPath();
+  ctx.arc(rotX, delY, delR, 0, Math.PI * 2);
+  ctx.fillStyle = '#ef4444';
+  ctx.fill();
+  ctx.strokeStyle = '#dc2626';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Draw Trashcan Icon inside Delete Handle
+  ctx.strokeStyle = '#ffffff';
+  ctx.fillStyle = '#ffffff';
+  ctx.lineWidth = 1.3;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+
+  // Trashcan Lid bar
+  ctx.beginPath();
+  ctx.moveTo(rotX - 4, delY - 2.5);
+  ctx.lineTo(rotX + 4, delY - 2.5);
+  ctx.stroke();
+
+  // Trashcan Top Handle notch
+  ctx.beginPath();
+  ctx.moveTo(rotX - 1.5, delY - 2.5);
+  ctx.lineTo(rotX - 1.5, delY - 4.5);
+  ctx.lineTo(rotX + 1.5, delY - 4.5);
+  ctx.lineTo(rotX + 1.5, delY - 2.5);
+  ctx.stroke();
+
+  // Trashcan Body
+  ctx.beginPath();
+  ctx.moveTo(rotX - 3.5, delY - 1);
+  ctx.lineTo(rotX - 2.8, delY + 4.5);
+  ctx.lineTo(rotX + 2.8, delY + 4.5);
+  ctx.lineTo(rotX + 3.5, delY - 1);
+  ctx.closePath();
+  ctx.stroke();
+
+  // Inner lines
+  ctx.beginPath();
+  ctx.moveTo(rotX - 1, delY + 0.5);
+  ctx.lineTo(rotX - 1, delY + 3);
+  ctx.moveTo(rotX + 1, delY + 0.5);
+  ctx.lineTo(rotX + 1, delY + 3);
+  ctx.stroke();
+
+  ctx.restore();
+
   // Draw handles
   getHandles(s).forEach(h => {
-    if (h.type === 'rotate') return;
+    if (h.type === 'rotate' || h.type === 'delete') return;
 
     ctx.beginPath();
     if (h.type === 'point') {
@@ -822,6 +925,20 @@ const Canvas = forwardRef(function Canvas(
     pasteSelected();
   }, [copySelected, pasteSelected]);
 
+  const deleteSelectedShape = useCallback(() => {
+    if (!selIdRef.current) return;
+    const deletedId = selIdRef.current;
+    pushHist();
+    setShapes(prev => {
+      const next = prev.filter(s => s.id !== deletedId);
+      shapesRef.current = next;
+      return next;
+    });
+    setSelId(null);
+    onSelectShape?.(null);
+    onShapeDeleted?.(deletedId);
+  }, [pushHist, onSelectShape, onShapeDeleted]);
+
   // ── Layer Reordering ─────────────────────────────────────
   const changeLayer = useCallback((action) => {
     if (!selIdRef.current) return;
@@ -989,6 +1106,7 @@ const Canvas = forwardRef(function Canvas(
     cut: cutSelected,
     paste: pasteSelected,
     duplicate: duplicateSelected,
+    deleteSelectedShape,
     download(theme = 'light') {
       const c = canvasRef.current;
       if (!c) return;
@@ -1017,7 +1135,7 @@ const Canvas = forwardRef(function Canvas(
       a.href = off.toDataURL('image/png');
       a.click();
     },
-  }), [pushHist, onHistoryChange, onCanvasSync, changeLayer, copySelected, cutSelected, pasteSelected, duplicateSelected]);
+  }), [pushHist, onHistoryChange, onCanvasSync, changeLayer, copySelected, cutSelected, pasteSelected, duplicateSelected, deleteSelectedShape]);
 
   // ── Canvas resize ────────────────────────────────────────
   useEffect(() => {
@@ -1202,12 +1320,16 @@ const Canvas = forwardRef(function Canvas(
       return;
     }
 
-    // ── UNIVERSAL RESIZE / ROTATE / CURVE HANDLE CHECK ─────
+    // ── UNIVERSAL RESIZE / ROTATE / CURVE / DELETE HANDLE CHECK ─────
     if (selIdRef.current) {
       const selShape = shapesRef.current.find(s => s.id === selIdRef.current);
       if (selShape) {
         const h = hitHandle(pos.x, pos.y, selShape);
         if (h) {
+          if (h.type === 'delete') {
+            deleteSelectedShape();
+            return;
+          }
           pushHist();
           resizing.current   = true;
           resizingId.current = selShape.id;
@@ -1528,11 +1650,7 @@ const Canvas = forwardRef(function Canvas(
       }
       if (e.key === 'Escape') setSelId(null);
       if ((e.key === 'Delete' || e.key === 'Backspace') && selIdRef.current) {
-        const deletedId = selIdRef.current;
-        pushHist();
-        setShapes(prev => prev.filter(s => s.id !== deletedId));
-        setSelId(null);
-        onShapeDeleted?.(deletedId);
+        deleteSelectedShape();
       }
     };
     window.addEventListener('keydown', fn);
