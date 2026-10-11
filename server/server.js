@@ -14,15 +14,36 @@ const http          = require('http');
 const { Server }    = require('socket.io');
 const admin         = require('firebase-admin');
 const path          = require('path');
+const fs            = require('fs');
+
+// ── Load .env variables (server/.env or root .env) ───────────────
+const envPaths = [path.join(__dirname, '.env'), path.join(__dirname, '..', '.env')];
+for (const p of envPaths) {
+  if (fs.existsSync(p)) {
+    const lines = fs.readFileSync(p, 'utf8').split('\n');
+    for (const line of lines) {
+      const match = line.match(/^\s*([\w.-]+)\s*=\s*(.*)?\s*$/);
+      if (match) {
+        const key = match[1];
+        let val = (match[2] || '').trim().replace(/^['"](.*)['"]$/, '$1');
+        if (!process.env[key]) process.env[key] = val;
+      }
+    }
+  }
+}
 
 // ── Cloudflare TURN Credentials Setup ────────────────────────────
-const CF_TURN_KEY_ID = process.env.CF_TURN_KEY_ID || 'a95bdd487ddfd4c364d6e715cfc924a1';
-const CF_TURN_API_TOKEN = process.env.CF_TURN_API_TOKEN || '09bfd7a4c9dfa69619edcd6e63c9079c490389272d954cb24d1b89333aae7c8e';
+const CF_TURN_KEY_ID = process.env.CF_TURN_KEY_ID || '';
+const CF_TURN_API_TOKEN = process.env.CF_TURN_API_TOKEN || '';
 
 let cachedIceServers = null;
 let cachedIceExpiry = 0;
 
 async function getCloudflareIceServers() {
+  if (!CF_TURN_KEY_ID || !CF_TURN_API_TOKEN) {
+    console.warn('⚠️ Cloudflare TURN credentials not configured in environment variables');
+    return null;
+  }
   const now = Date.now();
   if (cachedIceServers && now < cachedIceExpiry) {
     return cachedIceServers;

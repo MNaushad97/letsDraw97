@@ -973,29 +973,46 @@ body,
 /* ── Status Tab (Attached to Room Panel, Animates Downward below pill) ── */
 .rp-top-status-tab {
   position: absolute;
-  bottom: 0;
-  top: auto;
-  left: 10px;
-  right: 10px;
-  height: 26px;
+  top: 100%;
+  bottom: auto;
+  left: 6px;
+  right: 6px;
+  min-height: 24px;
+  height: auto;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 0 10px;
+  padding: 4px 8px;
   border-radius: 0 0 12px 12px;
   font-size: 11px;
   font-weight: 700;
   letter-spacing: 0.02em;
   pointer-events: none;
   opacity: 0;
-  transform: translateY(0);
+  transform: translateY(-6px);
   z-index: -1;
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
-  white-space: nowrap;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.25s ease;
+  white-space: normal;
+  text-align: center;
+  word-break: break-word;
+  line-height: 1.35;
+  box-sizing: border-box;
 }
 
-/* Retrying Sync Tab (Red/Pink) -> Animates DOWN */
+.rp-top-status-tab span {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+.rp-top-status-tab .rp-dot {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* Retrying Sync Tab (Red/Pink) */
 .rp-top-status-tab.retrying {
   background: rgba(255, 110, 110, 0.22);
   border: 1px solid rgba(255, 79, 106, 0.45);
@@ -1005,12 +1022,7 @@ body,
   -webkit-backdrop-filter: blur(12px);
 }
 
-.rp-top-status-tab.retrying.visible {
-  opacity: 1;
-  transform: translateY(24px);
-}
-
-/* Syncing Tab (Light Green) -> Animates DOWN */
+/* Syncing Tab (Light Green) */
 .rp-top-status-tab.syncing {
   background: rgba(46, 204, 113, 0.22);
   border: 1px solid rgba(46, 204, 113, 0.45);
@@ -1020,18 +1032,7 @@ body,
   -webkit-backdrop-filter: blur(12px);
 }
 
-.rp-top-status-tab.syncing.visible {
-  opacity: 1;
-  transform: translateY(24px);
-}
-
-.rp-top-status-tab.syncing:not(.visible) {
-  opacity: 0;
-  transform: translateY(0);
-  transition: transform 0.4s ease-in, opacity 0.35s ease-in;
-}
-
-/* Sync Stopped Tab (Grey) -> Animates DOWN */
+/* Sync Stopped Tab (Grey) */
 .rp-top-status-tab.stopped {
   background: rgba(140, 140, 155, 0.22);
   border: 1px solid rgba(140, 140, 155, 0.45);
@@ -1041,15 +1042,16 @@ body,
   -webkit-backdrop-filter: blur(12px);
 }
 
-.rp-top-status-tab.stopped.visible {
+/* When visible */
+.rp-top-status-tab.visible {
   opacity: 1;
-  transform: translateY(24px);
+  transform: translateY(0);
 }
 
-.rp-top-status-tab.stopped:not(.visible) {
+.rp-top-status-tab:not(.visible) {
   opacity: 0;
-  transform: translateY(0);
-  transition: transform 0.4s ease-in, opacity 0.35s ease-in;
+  transform: translateY(-6px);
+  transition: transform 0.25s ease-in, opacity 0.2s ease-in;
 }
 
 @keyframes statusTabSlideDown {

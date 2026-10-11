@@ -384,7 +384,7 @@ export default function RoomPanel({
     ? 'syncing...'
     : tabState === 'retrying'
     ? 'retrying sync...'
-    : 'sync stopped • click member count to retry';
+    : 'sync stopped • click to retry';
 
   const dotClass = tabState === 'syncing'
     ? 'on'
